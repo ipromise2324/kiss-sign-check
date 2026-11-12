@@ -1,0 +1,65 @@
+{
+  "safe": "0xF33Cec38B56dc445399ae0D4ec834e83dA67e19c",
+  "to": "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb",
+  "value": "0",
+  "data": "0xeecea0000000000000000000000000004a6c312ec70e8747a587ee860a0353cd42be0ae00000000000000000000000000000000000000000000000000000000000000001",
+  "operation": 0,
+  "gasToken": "0x0000000000000000000000000000000000000000",
+  "safeTxGas": "0",
+  "baseGas": "0",
+  "gasPrice": "0",
+  "refundReceiver": "0x0000000000000000000000000000000000000000",
+  "nonce": "404",
+  "executionDate": "2026-09-08T14:05:59Z",
+  "submissionDate": "2026-09-08T14:03:54.496973Z",
+  "modified": "2026-09-08T14:05:59Z",
+  "blockNumber": 25933130,
+  "transactionHash": "0xc66886d2109e78874d460f95e07d5c0b3a1372e197d2642af39448bb3cf235ba",
+  "safeTxHash": "0x84ef6bee2a4aa95ad1c0ba8e9fa9b0ad2cbae3364b53c30f2506f508780db272",
+  "proposer": "0xFFAB1979e91e3BcFA40AEe445c29a409Be7312Eb",
+  "proposedByDelegate": null,
+  "executor": "0x81c56101Ba56857dC7cC666873c0F557D57598e1",
+  "isExecuted": true,
+  "isSuccessful": true,
+  "ethGasPrice": "660019486",
+  "maxFeePerGas": "828500000",
+  "maxPriorityFeePerGas": "150000000",
+  "gasUsed": 81671,
+  "fee": "53904451441106",
+  "payment": "0",
+  "origin": "{\"url\": \"https://apps-portal.safe.global/wallet-connect\", \"name\": \"Morpho\", \"note\": null}",
+  "dataDecoded": {
+    "method": "setAuthorization",
+    "parameters": [
+      {
+        "name": "authorized",
+        "type": "address",
+        "value": "0x4A6c312ec70E8747a587EE860a0353cd42Be0aE0"
+      },
+      {
+        "name": "newIsAuthorized",
+        "type": "bool",
+        "value": "True"
+      }
+    ]
+  },
+  "confirmationsRequired": 2,
+  "confirmations": [
+    {
+      "owner": "0xFFAB1979e91e3BcFA40AEe445c29a409Be7312Eb",
+      "submissionDate": "2026-09-08T14:03:54.528310Z",
+      "transactionHash": null,
+      "signature": "0xe97d650349edf659f88a1a2d9b782b6261720e43417dc48d79855472fab3111709dba982974e45e6d1333e0acb77342dcc85ca90f6e537a11e620e6595d36b651b",
+      "signatureType": "EOA"
+    },
+    {
+      "owner": "0x81c56101Ba56857dC7cC666873c0F557D57598e1",
+      "submissionDate": "2026-09-08T14:05:59Z",
+      "transactionHash": null,
+      "signature": "0x00000000000000000000000081c56101ba56857dc7cc666873c0f557d57598e1000000000000000000000000000000000000000000000000000000000000000001",
+      "signatureType": "APPROVED_HASH"
+    }
+  ],
+  "trusted": true,
+  "signatures": "0x00000000000000000000000081c56101ba56857dc7cc666873c0f557d57598e1000000000000000000000000000000000000000000000000000000000000000001e97d650349edf659f88a1a2d9b782b6261720e43417dc48d79855472fab3111709dba982974e45e6d1333e0acb77342dcc85ca90f6e537a11e620e6595d36b651b"
+}

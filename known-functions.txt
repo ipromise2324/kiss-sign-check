@@ -1,0 +1,47 @@
+# ERC-20
+transfer(address,uint256)
+approve(address,uint256)
+transferFrom(address,address,uint256)
+# ERC-4626 (Morpho vaults, Fluid fTokens)
+deposit(uint256,address)
+mint(uint256,address)
+withdraw(uint256,address,address)
+redeem(uint256,address,address)
+# Safe MultiSend
+multiSend(bytes)
+# Morpho Bundler3 and its adapters
+multicall((address,bytes,uint256,bool,bytes32)[])
+erc20TransferFrom(address,address,uint256)
+erc20Transfer(address,address,uint256)
+erc4626Deposit(address,uint256,uint256,address)
+erc4626Withdraw(address,uint256,uint256,address,address)
+erc4626Redeem(address,uint256,uint256,address,address)
+morphoSupplyCollateral((address,address,address,address,uint256),uint256,address,bytes)
+morphoBorrow((address,address,address,address,uint256),uint256,uint256,uint256,address)
+vaultBundlesV1Deposit(address,uint256,uint256,(uint8,bytes),uint256,address,uint256)
+blueBundlesV1Supply((address,address,address,address,uint256),uint256,(uint8,bytes),uint256,address,uint256)
+# Uniswap Permit2
+approve(address,address,uint160,uint48)
+# Morpho Blue
+setAuthorization(address,bool)
+# Morpho URD
+claim(address,address,uint256,bytes32[])
+# Merkl
+claim(address[],address[],uint256[],bytes32[][])
+# Fluid rewards
+claim(address,uint256,uint8,bytes32,uint256,bytes32[],bytes)
+# CCTP
+receiveMessage(bytes,bytes)
+# Safe admin functions (named so the check can warn about them)
+addOwnerWithThreshold(address,uint256)
+removeOwner(address,address,uint256)
+swapOwner(address,address,address)
+changeThreshold(uint256)
+enableModule(address)
+disableModule(address,address)
+setGuard(address)
+setModuleGuard(address)
+setFallbackHandler(address)
+approveHash(bytes32)
+execTransactionFromModule(address,uint256,bytes,uint8)
+setup(address[],uint256,address,bytes,address,address,uint256,address)

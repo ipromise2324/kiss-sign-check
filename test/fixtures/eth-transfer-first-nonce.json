@@ -1,0 +1,51 @@
+{
+  "safe": "0xc6835323372A4393B90bCc227c58e82D45CE4b7d",
+  "to": "0x5904BfE5D9d96b57c98AaA935337e7Aa228ed528",
+  "value": "1000000000000000",
+  "data": null,
+  "operation": 0,
+  "gasToken": "0x0000000000000000000000000000000000000000",
+  "safeTxGas": "0",
+  "baseGas": "0",
+  "gasPrice": "0",
+  "refundReceiver": "0xd4d17De3d7db120Fda998792c2Fdd5a8896841dB",
+  "nonce": "0",
+  "executionDate": "2025-02-28T15:47:23Z",
+  "submissionDate": "2025-02-28T15:47:23Z",
+  "modified": "2025-02-28T15:47:23Z",
+  "blockNumber": 21945833,
+  "transactionHash": "0x2f9764a54bb09d0c2a1d6fed863c3a22f66d62653f8abf970b9a70eb3d016403",
+  "safeTxHash": "0x5a90cb9c3ae0e4568a9572993c2c6eeefcb5f6c2b77659492ad2332f73205dbc",
+  "proposer": null,
+  "proposedByDelegate": null,
+  "executor": "0x5904BfE5D9d96b57c98AaA935337e7Aa228ed528",
+  "isExecuted": true,
+  "isSuccessful": true,
+  "ethGasPrice": "3556056279",
+  "maxFeePerGas": "3600000000",
+  "maxPriorityFeePerGas": "940900000",
+  "gasUsed": 88803,
+  "fee": "315788465744037",
+  "payment": null,
+  "origin": "{}",
+  "dataDecoded": null,
+  "confirmationsRequired": 2,
+  "confirmations": [
+    {
+      "owner": "0x5904BfE5D9d96b57c98AaA935337e7Aa228ed528",
+      "submissionDate": "2025-02-28T15:47:23Z",
+      "transactionHash": null,
+      "signature": "0x284dba60947ee925a0e5e739e0ab415e67d23de1710b503697b1d350445f4699604d5e099ee0978214eef34ea516ead250a8cf2ce56c8587d5ef53723677815a1c",
+      "signatureType": "EOA"
+    },
+    {
+      "owner": "0x8fd6e2c0CB2F1E9E20B5724A95c574fE27972243",
+      "submissionDate": "2025-02-28T15:47:23Z",
+      "transactionHash": null,
+      "signature": "0x3de042f17c38ef7721d474776d5cde76781344a8b02960d49e2e6203daf77bb43706a7a057312b151aef1e9b85146a224ff0b89d1f83da3a7002082f79fde1ea1b",
+      "signatureType": "EOA"
+    }
+  ],
+  "trusted": true,
+  "signatures": "0x284dba60947ee925a0e5e739e0ab415e67d23de1710b503697b1d350445f4699604d5e099ee0978214eef34ea516ead250a8cf2ce56c8587d5ef53723677815a1c3de042f17c38ef7721d474776d5cde76781344a8b02960d49e2e6203daf77bb43706a7a057312b151aef1e9b85146a224ff0b89d1f83da3a7002082f79fde1ea1b"
+}

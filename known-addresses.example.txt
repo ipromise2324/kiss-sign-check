@@ -1,0 +1,3 @@
+# One address per line: 0x<40 hex characters>, a space, then a name you chose.
+# Copy each address from the protocol's official documentation, never from the work computer.
+0x0000000000000000000000000000000000000001 Example name

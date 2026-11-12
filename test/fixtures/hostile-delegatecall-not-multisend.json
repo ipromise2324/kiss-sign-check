@@ -1,0 +1,20 @@
+{
+  "safe": "0x93BD8C5eb0eAB5BE7BfE156Ebfa0887AE7Dd0CEb",
+  "to": "0x5C20B550819128074FD538Edf79791733ccEdd18",
+  "value": "0",
+  "data": "0x6e553f6500000000000000000000000000000000000000000000000000000000000003e800000000000000000000000093bd8c5eb0eab5be7bfe156ebfa0887ae7dd0ceb",
+  "operation": 1,
+  "gasToken": "0x0000000000000000000000000000000000000000",
+  "safeTxGas": "0",
+  "baseGas": "0",
+  "gasPrice": "0",
+  "refundReceiver": "0x0000000000000000000000000000000000000000",
+  "nonce": "13",
+  "submissionDate": "2026-09-20T21:26:22.389642Z",
+  "modified": "2026-09-20T21:27:11Z",
+  "proposer": "0x261b94C07Dafb19E9E5F33B0819eeA99aF1804F4",
+  "proposedByDelegate": null,
+  "payment": "0",
+  "confirmationsRequired": 2,
+  "trusted": true
+}

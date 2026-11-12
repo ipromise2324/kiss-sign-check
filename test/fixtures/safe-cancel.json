@@ -1,0 +1,58 @@
+{
+  "safe": "0x9467dcFD4519287e3878C018c02f5670465a9003",
+  "to": "0x9467dcFD4519287e3878C018c02f5670465a9003",
+  "value": "0",
+  "data": null,
+  "operation": 0,
+  "gasToken": "0x0000000000000000000000000000000000000000",
+  "safeTxGas": "0",
+  "baseGas": "0",
+  "gasPrice": "0",
+  "refundReceiver": "0x0000000000000000000000000000000000000000",
+  "nonce": "87",
+  "executionDate": "2022-12-14T20:38:59Z",
+  "submissionDate": "2022-12-14T17:23:06.755655Z",
+  "modified": "2022-12-14T20:39:10.417303Z",
+  "blockNumber": 16185376,
+  "transactionHash": "0x274ee22454c05f8ee8128de656ef76ba580901d9791c73076cc71d9889b96285",
+  "safeTxHash": "0x85b2e62e2fe9b9000331e9c2ebee7102af5968ad77fbcb800cf64eca68984825",
+  "proposer": null,
+  "proposedByDelegate": null,
+  "executor": "0x91628ddc3A6ff9B48A2f34fC315D243eB07a9501",
+  "isExecuted": true,
+  "isSuccessful": true,
+  "ethGasPrice": "13409708858",
+  "maxFeePerGas": "14253899037",
+  "maxPriorityFeePerGas": "253899037",
+  "gasUsed": 70442,
+  "fee": "944606711375236",
+  "payment": null,
+  "origin": "{}",
+  "dataDecoded": null,
+  "confirmationsRequired": 3,
+  "confirmations": [
+    {
+      "owner": "0x8E900Cf9BD655e34bb610f0Ef365D8d476fD7337",
+      "submissionDate": "2022-12-14T17:23:06.799132Z",
+      "transactionHash": null,
+      "signature": "0x64ab5cb7684042b947f077ea986161ff80b3a5b517e8311d97d1981595bb472d596cd963aeb5b1ab406c7dd5f10e6df407fb60400efa1481b58761bda3db13741b",
+      "signatureType": "EOA"
+    },
+    {
+      "owner": "0x734C242BA2d6A47644093F874FA4dad15005CF19",
+      "submissionDate": "2022-12-14T17:24:32.340514Z",
+      "transactionHash": null,
+      "signature": "0xe9b69b9f76aa4f04d52f7dd354330b33f27ec8b76473265749495887bd89229333f66a652bfae25523c7e6e06e4f7e36a040338d6636466839a547a5bfd13c4a1b",
+      "signatureType": "EOA"
+    },
+    {
+      "owner": "0x91628ddc3A6ff9B48A2f34fC315D243eB07a9501",
+      "submissionDate": "2022-12-14T17:57:54.202157Z",
+      "transactionHash": null,
+      "signature": "0x00000000000000000000000091628ddc3a6ff9b48a2f34fc315d243eb07a9501000000000000000000000000000000000000000000000000000000000000000001",
+      "signatureType": "APPROVED_HASH"
+    }
+  ],
+  "trusted": true,
+  "signatures": "0xe9b69b9f76aa4f04d52f7dd354330b33f27ec8b76473265749495887bd89229333f66a652bfae25523c7e6e06e4f7e36a040338d6636466839a547a5bfd13c4a1b64ab5cb7684042b947f077ea986161ff80b3a5b517e8311d97d1981595bb472d596cd963aeb5b1ab406c7dd5f10e6df407fb60400efa1481b58761bda3db13741b00000000000000000000000091628ddc3a6ff9b48a2f34fc315d243eb07a9501000000000000000000000000000000000000000000000000000000000000000001"
+}
