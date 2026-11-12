@@ -55,6 +55,7 @@ ADDRESSES=$MULTISENDS
 while read -r addr name; do
   case $addr in ''|'#'*) continue ;; esac
   is_addr "$addr" && [ -n "$name" ] || die "known-addresses.txt 這行格式不對: $addr $name"
+  printf '%s\n' "$MULTISENDS" | grep -q "^$(lc "$addr") " && continue  # already named by the official list above
   ADDRESSES="$ADDRESSES"$'\n'"$(lc "$addr") $name"
 done < "$KNOWN"
 dup=$(printf '%s\n' "$ADDRESSES" | cut -d' ' -f1 | sort | uniq -d)
