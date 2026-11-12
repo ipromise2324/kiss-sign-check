@@ -14,7 +14,7 @@ case_() {
   shift 3
   printf 'SAFE=%s\nSAFE_VERSION=%s\n' "$(jq -r '(.results[0] // .).safe' "$TEST/fixtures/$name.json")" "$version" > "$WORK/config"
   out=$(CHECK_CONFIG="$WORK/config" CHECK_KNOWN="$TEST/known-addresses.txt" \
-    /bin/bash "$TEST/../check.sh" --file "$TEST/fixtures/$name.json" 2>&1) || status="FAIL (exit $?)"
+    /bin/bash "$TEST/../check.sh" --file "$TEST/fixtures/$name.json" 2>&1) || true
   if [ "$hash" != - ] && ! grep -qF "safeTxHash（和錢包顯示的比對）: $hash" <<<"$out"; then status="FAIL (hash)"; fi
   for want in "$@"; do
     case $want in
@@ -51,9 +51,9 @@ case_ morpho-set-authorization 1.4.1 0x84ef6bee2a4aa95ad1c0ba8e9fa9b0ad2cbae3364
 case_ morpho-borrow-set-authorization 1.4.1 0x0aa75b0fa21bb435a0a63eafa003e7b546a4c0b6d9172bf594383b4c0e65037e \
   '+setAuthorization(address,bool)' '+morphoSupplyCollateral' '+morphoBorrow' '+沒有警告'
 case_ permit2-unlimited-approval 1.4.1 0x5ddf364b6199c45b5bf4e631a52083d125bfadf538a3647cb050dc244b9fea2e \
-  '+approve(address,address,uint160,uint48)' '+是未知函式 selector 0xac9650d8'
+  '+approve(address,address,uint160,uint48)' '+裡有未知函式 selector 0xac9650d8'
 case_ cctp-receive-then-call 1.4.1 0xaffef7919a235fa81f6ddfcd5b140eb0a56f618b47d17a124fc95fa9735f002c \
-  '+receiveMessage(bytes,bytes)' '+是未知函式 selector 0xbcd7e46c'
+  '+receiveMessage(bytes,bytes)' '+有 248 bytes 的 bytes 引數無法解碼' '+裡有未知函式 selector 0xbcd7e46c'
 
 case_ hostile-multisend-leftover-bytes 1.4.1 - '+MultiSend 尾端剩 32 bytes，不足一筆呼叫'
 case_ hostile-multisend-length-too-long 1.4.1 - '+MultiSend 的長度欄位說 100 bytes，但只剩 68 bytes'
@@ -63,6 +63,13 @@ case_ hostile-add-owner 1.4.1 - '+Safe 管理函式 addOwnerWithThreshold' '+不
 case_ hostile-service-hash-lies 1.4.1 0x5da4666bcaac9ee9e596762e220ffa6407a6da604ea91764bee1d5796810282c '+服務給的 safeTxHash'
 case_ hostile-two-txs-same-nonce 1.4.1 0x5da4666bcaac9ee9e596762e220ffa6407a6da604ea91764bee1d5796810282c \
   '+這個 nonce 有 2 筆不同的交易' '+不認識的地址 0x2222222222222222222222222222222222222222'
+
+case_ hostile-evil-inject 1.4.1 0x103faaa423a43bfd4fc34b19262d494d34852e353bc3449e5d403f299b9458eb \
+  '+服務給的 safeTxHash 格式不對（不顯示）' '+Safe 管理函式 addOwnerWithThreshold' "-$(printf '\033')"
+case_ hostile-hidden-bundler-call 1.4.1 - '+裡有未知函式 selector 0x39029ab6'
+case_ hostile-hidden-callback 1.4.1 - '+Morpho 回呼的 bundle' '+erc20TransferFrom' '+不認識的地址 0x5555555555555555555555555555555555555555'
+case_ hostile-dirty-uint8 1.4.1 - '+資料不是標準 ABI 編碼'
+case_ hostile-big-value 1.4.1 - '+錯誤: 無法編碼這筆交易的欄位'
 
 if [ "$FAILED" -gt 0 ]; then echo "$FAILED 個測試失敗"; exit 1; fi
 echo "全部通過"

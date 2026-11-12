@@ -37,19 +37,23 @@ If several transactions share the nonce, the script prints each one with its has
 ## What it guarantees
 
 - The hash is computed locally from the same `to`, `value`, `data`, `operation` and gas fields that the decoder prints. The service's own hash and its decoded view are never used, except to warn when its hash differs.
-- Every call is shown, including each call inside a MultiSend and each known call inside a `bytes` argument (such as a Morpho Bundler3 `multicall`). The MultiSend list must split exactly; leftover or missing bytes are a warning.
+- Every call is shown, including each call inside a MultiSend, each call of a Morpho Bundler3 `multicall` (with its target and value), the bundle Morpho calls back with from `morphoSupplyCollateral`, and each known call inside any other `bytes` argument. The MultiSend list must split exactly; leftover or missing bytes are a warning.
+- A `bytes` argument that cannot be decoded (other than a 20- or 32-byte value) is a warning, because something may be inside it that is not shown. A CCTP `receiveMessage` always gets two such warnings: its message and attestation are opaque.
 - Every function is looked up by selector in `known-functions.txt`, checked with `cast sig`. An unknown selector is a warning; nothing is guessed or looked up online.
 - The decoded arguments are encoded again and compared with the data. Extra bytes after the arguments (the Morpho app adds 8 or 12) are printed; any other difference is a warning.
 - Every address is named from your list, or flagged as unknown.
-- Warnings: non-zero `safeTxGas`, `baseGas`, `gasPrice`, `gasToken` or `refundReceiver`; a DELEGATECALL other than the Safe's own call into an official MultiSend; an unknown function or address; ETH sent along with a call; a Safe admin function anywhere; several transactions at one nonce; a service hash that differs.
+- Warnings: non-zero `safeTxGas`, `baseGas`, `gasPrice`, `gasToken` or `refundReceiver`; a DELEGATECALL other than the Safe's own call into an official MultiSend; a plain CALL into a MultiSend; a zero `to` inside a MultiSend (MultiSend 1.5.0 turns it into a call to the Safe); an unknown function or address; ETH sent along with a call; a Safe admin function anywhere; several transactions at one nonce; a service hash that differs or is malformed.
+- Terminal control characters are removed from everything the script prints, so no field from the service can redraw the screen. The script also checks at start that `cast` decodes in the shape it expects, and refuses to run otherwise.
+- The output names the config and address list it used, since `CHECK_CONFIG` and `CHECK_KNOWN` (used by the tests) can replace them.
 
 ## What it does not do
 
 - It does not judge whether a contract is the protocol's real one, or whether the transaction matches what you meant to do. kiss-sign does that; this script only shows what the transaction is.
 - It does not simulate the transaction or read the chain.
-- It does not decode bytes that are not a known call (for example a CCTP message), so addresses packed inside them are not named.
+- It does not decode bytes that are not a known call (for example a CCTP message), so addresses packed inside them are not named. It warns instead.
+- A 32-byte `bytes` value inside an unknown container is shown raw without a warning, since it cannot be told apart from a `bytes32`.
 - It does not format amounts by token decimals. Amounts are raw integers, as kiss-sign prints them.
-- Mainnet (chain id 1) only. Safe versions 1.1.0 to 1.5.0.
+- Mainnet (chain id 1) only. Safe versions 1.1.0, 1.1.1, 1.2.0, 1.3.0, 1.4.0, 1.4.1 and 1.5.0.
 
 ## Tests
 
@@ -57,6 +61,6 @@ If several transactions share the nonce, the script prints each one with its has
 /bin/bash test/run.sh
 ```
 
-`test/fixtures/` holds real transactions of other Safes, recorded by kiss-sign, plus crafted hostile cases (`hostile-*`). Each real case must reproduce the recorded on-chain safeTxHash.
+`test/fixtures/` holds real transactions of other Safes, recorded by kiss-sign, plus crafted hostile cases (`hostile-*`). Each real case must reproduce the recorded on-chain safeTxHash. `test/known-addresses.txt` is a list for the tests only; do not use it for signing.
 
 The official MultiSend addresses in `check.sh` come from [safe-global/safe-deployments](https://github.com/safe-global/safe-deployments) at commit `ca9cb0d2d5f5175fc8e41d579f356748d2bc1c62`.

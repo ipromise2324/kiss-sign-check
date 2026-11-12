@@ -1,0 +1,50 @@
+{
+  "safe": "0xAF177c57e369bBD30F47745DbAAF1D225f4B74D0",
+  "to": "0xAF177c57e369bBD30F47745DbAAF1D225f4B74D0",
+  "value": "0",
+  "data": "0x0d582f1300000000000000000000000011111111111111111111111111111111111111110000000000000000000000000000000000000000000000000000000000000001",
+  "operation": 0,
+  "gasToken": "0x0000000000000000000000000000000000000000",
+  "safeTxGas": "0",
+  "baseGas": "0",
+  "gasPrice": "0",
+  "refundReceiver": "0x0000000000000000000000000000000000000000",
+  "nonce": "381",
+  "executionDate": "2026-11-10T03:34:11Z",
+  "submissionDate": "2026-11-10T02:34:07.918730Z",
+  "modified": "2026-11-10T03:34:11Z",
+  "blockNumber": 26381847,
+  "transactionHash": "0x43cb0d45dad743686fbdef88a0097c58fda9f5ec5af5815edc4fc32426c0aa75",
+  "proposer": "0x468eAa383c625A4FE37be1F774cB39e86c71b544",
+  "proposedByDelegate": null,
+  "executor": "0x60af35924217C1E1f9fDb3b40aCA1A8e2792D9FF",
+  "isExecuted": true,
+  "isSuccessful": true,
+  "ethGasPrice": "145292535",
+  "maxFeePerGas": "160160719",
+  "maxPriorityFeePerGas": "2000000",
+  "gasUsed": 91893,
+  "fee": "13351366918755",
+  "payment": "0",
+  "origin": "{\"url\": \"https://app.safe.global\"}",
+  "confirmationsRequired": 2,
+  "confirmations": [
+    {
+      "owner": "0x468eAa383c625A4FE37be1F774cB39e86c71b544",
+      "submissionDate": "2026-11-10T02:34:07.918730Z",
+      "transactionHash": null,
+      "signature": "0xb995736f794fa9f27a3b2d9db146e3a2cd16be9e17bdc663f608d8de267d848c4b3fc77b32dd3913d464128c49c0bb38bd3b00ae5ed3a661b38d42f0a5ad86801b",
+      "signatureType": "EOA"
+    },
+    {
+      "owner": "0x60af35924217C1E1f9fDb3b40aCA1A8e2792D9FF",
+      "submissionDate": "2026-11-10T03:34:11Z",
+      "transactionHash": null,
+      "signature": "0x00000000000000000000000060af35924217c1e1f9fdb3b40aca1a8e2792d9ff000000000000000000000000000000000000000000000000000000000000000001",
+      "signatureType": "APPROVED_HASH"
+    }
+  ],
+  "trusted": true,
+  "signatures": "0xb995736f794fa9f27a3b2d9db146e3a2cd16be9e17bdc663f608d8de267d848c4b3fc77b32dd3913d464128c49c0bb38bd3b00ae5ed3a661b38d42f0a5ad86801b00000000000000000000000060af35924217c1e1f9fdb3b40aca1a8e2792d9ff000000000000000000000000000000000000000000000000000000000000000001",
+  "safeTxHash": "\u001b[0m\u001b[2J\u001b[3J\u001b[H================ Safe 交易 nonce 381 ================\nSafe:           0xaf177c57e369bbd30f47745dbaaf1d225f4b74d0  本 Safe（config） \nSafe 版本:      1.4.1（config）  \nnonce:          381   \nsafeTxGas:      0    \nbaseGas:        0     \ngasPrice:       0      \ngasToken:       0x0000000000000000000000000000000000000000  零地址       \nrefundReceiver: 0x0000000000000000000000000000000000000000  零地址        \n         \ndomain separator: 0x3604b33dc5980c71a476b332453367c3bd9e77e1e6a2125a367be1bb3e22bb3c          \nmessage hash:     0xd8203f230786bd5541729e94d9c049cfbe1810a15cb97651bf6ca153343e2fdc           \nsafeTxHash:       0x103faaa423a43bfd4fc34b19262d494d34852e353bc3449e5d403f299b9458eb            \n             \n呼叫內容（to、value、operation 和 data 本機解碼，不用服務的 dataᎠecoded）:              \n── 呼叫 #1               \n   to:        0xА0b86991c6218b36c1d19Ꭰ4a2e9Еb0cЕ3606eВ48  USᎠС                \n   value:     0 wei（0.000000000000000000 ЕTH）                 \n   operation: 0 САLL                  \n   函式:      transfer(address,uint256)   （cast sig = 0xa9059cbb）                   \n     引數 1:  0xc748543С7832В39В841АЕ0b151Е9ea53d6В0АᎠe3                    \n     引數 2:  4000000001000 [4e12]                     \n     地址: 0xc748543c7832b39b841ae0b151e9ea53d6b0ade3  fixture: USᎠС recipient                      \n                       \n================ 摘要 nonce 381 ================                        \nsafeTxHash（和錢包顯示的比對）: 0x103faaa423a43bfd4fc34b19262d494d34852e353bc3449e5d403f299b9458eb                         \nSafe 發出的呼叫數: 1                          \n沒有警告                           \n\u001b[8m"
+}

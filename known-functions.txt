@@ -32,7 +32,7 @@ claim(address[],address[],uint256[],bytes32[][])
 claim(address,uint256,uint8,bytes32,uint256,bytes32[],bytes)
 # CCTP
 receiveMessage(bytes,bytes)
-# Safe admin functions (named so the check can warn about them)
+# Safe admin functions
 addOwnerWithThreshold(address,uint256)
 removeOwner(address,address,uint256)
 swapOwner(address,address,address)
