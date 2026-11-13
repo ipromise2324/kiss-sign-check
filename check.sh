@@ -363,7 +363,7 @@ page() {
 <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">
 <meta name=\"color-scheme\" content=\"dark\">
 <meta http-equiv=\"Content-Security-Policy\" content=\"\($csp)\">
-<title>check.sh nonce \($nonce | @html)</title>
+<title>獨立檢查 check.sh · nonce \($nonce | @html)</title>
 <style>
 \($css)
 </style>
@@ -373,8 +373,11 @@ page() {
 <div class=\"wrap\">
 <div class=\"main solo\">
 <header>
-  <h1>kiss-sign-check</h1>
-  <span class=\"opid\">nonce \($nonce | @html)\(if $n > 1 then "，\($n) 筆不同的交易：只簽 safeTxHash 和硬體錢包相同的那一筆" else "" end)</span>
+  <div class=\"who\">
+    <h1><span class=\"prog\">獨立檢查 check.sh</span> · nonce \($nonce | @html)</h1>
+    <p class=\"sub\">獨立電腦上的 check.sh 只解碼這筆交易，不判斷它對不對。</p>
+  </div>\(if $n > 1 then "
+  <span class=\"opid\">\($n) 筆不同的交易：只簽 safeTxHash 和硬體錢包相同的那一筆</span>" else "" end)
 </header>
 " + ([to_entries[] | .key as $i | .value |
 "<section>
@@ -389,7 +392,13 @@ page() {
 </section>
 <section>
   <h2>警告 <span class=\"c\">\(.warnings | length)</span></h2>
-  <div class=\"rows\">\(.warnings | items("warn"))\(.notes | map("注意：" + .) | items("na"))
+  <div class=\"rows\">\(.warnings | items("warn"))
+  </div>
+</section>
+<section>
+  <h2>注意 <span class=\"c\">\(.notes | length)</span></h2>
+  <p class=\"lead\">解碼看到的事實，不是警告。check.sh 不判斷它們。</p>
+  <div class=\"rows\">\(.notes | items("na"))
   </div>
 </section>
 <section>
@@ -405,7 +414,7 @@ page() {
 </body>
 </html>"' "$WORK/txs" > "$WORK/page"
   mv "$WORK/page" "$file"
-  echo "頁面（完整解碼和比對清單）: $file"
+  echo "獨立檢查 check.sh 的頁面，nonce ${nonce}（完整解碼和比對清單）: $file"
   printf '打開: open %q\n' "$file"
 }
 
@@ -443,7 +452,7 @@ IFS= read -r -d '' PAGE_CSS <<'EOF' || true
   --bg:#0b0c0e; --hover:#121317; --line:#212328; --line2:#30333a;
   --fg:#eceef0; --fg2:#b0b4ba; --fg3:#8a8f97;
   --ok:#4cb782; --warn:#eda152; --bad:#ec6a5e;
-  --r:6px;
+  --r:6px; --accent:#b48ef7;
   --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang TC","Noto Sans TC","Helvetica Neue",Arial,sans-serif;
   --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   --t-body:16px; --t-row:15px; --t-small:14px; --t-label:13px; --t-mono:14px;
@@ -460,6 +469,9 @@ code{font-family:var(--mono);font-size:var(--t-mono);color:var(--fg);border:1px 
 .main{display:flex;flex-direction:column;gap:72px;max-width:880px;min-width:0}
 h1{font-size:30px;line-height:1.25;font-weight:590;letter-spacing:-.02em;margin:0;overflow-wrap:break-word}
 .opid{display:block;font-family:var(--mono);font-size:var(--t-label);color:var(--fg3);margin-top:8px}
+.sub{color:var(--fg2);margin:14px 0 0;max-width:60ch;font-size:17px}
+.who{border-left:4px solid var(--accent);padding-left:18px}
+.who .prog{color:var(--accent)}
 section{border-top:1px solid var(--line2);padding-top:28px}
 section>h2{font-size:22px;font-weight:590;letter-spacing:-.012em;margin:0 0 8px;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
 section>h2 .c{font-weight:400;font-size:var(--t-small);color:var(--fg3);letter-spacing:0}

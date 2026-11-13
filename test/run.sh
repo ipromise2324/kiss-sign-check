@@ -38,7 +38,9 @@ case_ fluid-deposit-usdt-other-safe 1.4.1 0x08e24eed62490209a17956478009d4015255
 case_ morpho-bundles-deposit 1.4.1 0xe1ae687dc96aa54128f515735204350f9bd7c0b4fb27ef0d224854901f98f5e1 \
   '+vaultBundlesV1Deposit' '+在引數之後多出 8 bytes' '+沒有警告'
 case_ morpho-deposit-approve-trailer-other-safe 1.4.1 0xda44113d1fa93aa491fd93713d7aaa0ea34ceb28414cbe4ee1d32d796c1342f3 \
-  '+multicall((address,bytes,uint256,bool,bytes32)[])' '+erc20TransferFrom' '+erc4626Deposit' '+在引數之後多出 8 bytes' '+沒有警告'
+  '+multicall((address,bytes,uint256,bool,bytes32)[])' '+erc20TransferFrom' '+erc4626Deposit' '+在引數之後多出 8 bytes' '+沒有警告' \
+  '+<h2>警告 <span class="c">0</span></h2>' '+<h2>注意 <span class="c">2</span></h2>' '-!! 警告' \
+  '+<title>獨立檢查 check.sh · nonce ' '+<span class="prog">獨立檢查 check.sh</span> · nonce ' '+獨立檢查 check.sh 的頁面，nonce '
 case_ merkl-claim-two-tokens 1.3.0 0x1b1774a52d845dce2ea6faac3ab5dd01747adda3af6838dde7f4f4107abdd59a \
   '+claim(address[],address[],uint256[],bytes32[][])' '+沒有警告'
 case_ morpho-urd-claim 1.4.1 0x5001bd84a4a5d9daa0d42fb7148b5da12c0343cdaa0ff046c449efec4b020104 \
