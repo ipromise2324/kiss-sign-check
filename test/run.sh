@@ -13,8 +13,10 @@ case_() {
   local name=$1 version=$2 hash=$3 out want status=PASS
   shift 3
   printf 'SAFE=%s\nSAFE_VERSION=%s\n' "$(jq -r '(.results[0] // .).safe' "$TEST/fixtures/$name.json")" "$version" > "$WORK/config"
-  out=$(CHECK_CONFIG="$WORK/config" CHECK_KNOWN="$TEST/known-addresses.txt" \
+  rm -rf "$WORK/out"
+  out=$(CHECK_CONFIG="$WORK/config" CHECK_KNOWN="$TEST/known-addresses.txt" CHECK_OUT="$WORK/out" \
     /bin/bash "$TEST/../check.sh" --file "$TEST/fixtures/$name.json" 2>&1) || true
+  if [ -d "$WORK/out" ]; then out="$out"$'\n'"$(cat "$WORK"/out/*.html)"; fi
   if [ "$hash" != - ] && ! grep -qF "safeTxHash（和錢包顯示的比對）: $hash" <<<"$out"; then status="FAIL (hash)"; fi
   for want in "$@"; do
     case $want in
@@ -70,6 +72,35 @@ case_ hostile-hidden-bundler-call 1.4.1 - '+裡有未知函式 selector 0x39029a
 case_ hostile-hidden-callback 1.4.1 - '+Morpho 回呼的 bundle' '+erc20TransferFrom' '+不認識的地址 0x5555555555555555555555555555555555555555'
 case_ hostile-dirty-uint8 1.4.1 - '+資料不是標準 ABI 編碼'
 case_ hostile-big-value 1.4.1 - '+錯誤: 無法編碼這筆交易的欄位'
+
+# The 比對清單 of one real transaction, pinned: kiss-sign's test compares its own block with this same file.
+# Each program's name column is left out, since each names addresses from its own list.
+checklist_() {
+  local name=$1 status=PASS
+  sed -n '/^<!-- 比對清單 -->$/,/^<!-- \/比對清單 -->$/p' "$WORK"/out/*.html | sed 's|<span class="nm">[^<]*</span>||' > "$WORK/checklist"
+  diff -u "$TEST/expected/$name.checklist.html" "$WORK/checklist" > "$WORK/diff" || status="FAIL (比對清單 differs)"
+  printf '%-45s %s\n' "$name 比對清單" "$status"
+  if [ "$status" != PASS ]; then FAILED=$((FAILED + 1)); head -20 "$WORK/diff"; fi
+}
+case_ morpho-deposit-approve-trailer-other-safe 1.4.1 0xda44113d1fa93aa491fd93713d7aaa0ea34ceb28414cbe4ee1d32d796c1342f3
+checklist_ morpho-deposit-approve-trailer-other-safe
+
+# Text from the service or from names must reach the page as inert text: escaped, with bidi and control characters replaced.
+html_() {
+  local name=$1 page status=PASS
+  printf '0x9999999999999999999999999999999999999999 %s\n' $'<script>alert(1)</script> "><img src=x onerror=alert(1)> \u202eevil\u200f\x01' > "$WORK/known-hostile.txt"
+  printf 'SAFE=%s\nSAFE_VERSION=1.4.1\n' "$(jq -r .safe "$TEST/fixtures/$name.json")" > "$WORK/config"
+  rm -rf "$WORK/out"
+  CHECK_CONFIG="$WORK/config" CHECK_KNOWN="$WORK/known-hostile.txt" CHECK_OUT="$WORK/out" \
+    /bin/bash "$TEST/../check.sh" --file "$TEST/fixtures/$name.json" > /dev/null 2>&1 || true
+  page=$(cat "$WORK"/out/*.html 2>/dev/null) || status="FAIL (no page)"
+  if grep -qiE '<script|<img' <<<"$page"; then status="FAIL (markup from outside)"; fi
+  if LC_ALL=C grep -q $'\xe2\x80\xae\|\xe2\x80\x8f\|\x01\|\x1b' <<<"$page"; then status="FAIL (bidi or control character)"; fi
+  grep -qF '&lt;script&gt;alert(1)&lt;/script&gt; &quot;&gt;&lt;img src=x onerror=alert(1)&gt;' <<<"$page" || status="FAIL (name not shown escaped)"
+  printf '%-45s %s\n' "$name" "$status"
+  if [ "$status" != PASS ]; then FAILED=$((FAILED + 1)); fi
+}
+html_ hostile-html-inject
 
 if [ "$FAILED" -gt 0 ]; then echo "$FAILED 個測試失敗"; exit 1; fi
 echo "全部通過"
