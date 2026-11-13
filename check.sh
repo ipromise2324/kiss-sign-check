@@ -19,8 +19,11 @@ is_uint() { [[ $1 =~ ^(0|[1-9][0-9]*)$ ]]; }
 for tool in cast curl jq; do
   command -v "$tool" >/dev/null || die "找不到 ${tool}。請安裝 Foundry（cast）、curl 和 jq。"
 done
-[ "$(cast decode-calldata --json 'f(address,bytes)' "$(cast calldata 'f(address,bytes)' $ZERO 0x01)" | jq -c .data)" \
-  = "[\"$ZERO\",\"0x01\"]" ] || die "這個版本的 cast 解碼輸出格式和本程式預期的不同"
+HINT='s/ \[-?[0-9.]+e[0-9]+\]//g'  # cast's "10001000000 [1e10]" -> "10001000000"
+[ "$(cast decode-calldata --json 'f(address,bytes,uint256)' "$(cast calldata 'f(address,bytes,uint256)' $ZERO 0x01 1000000000000000000000)" | jq -c .data)" \
+  = "[\"$ZERO\",\"0x01\",\"1000000000000000000000\"]" ] \
+  && [ "$(cast decode-calldata 'f(int256)' "$(cast calldata 'f(int256)' -- -1000000000000000000000)" | sed -E "$HINT")" = -1000000000000000000000 ] \
+  || die "這個版本的 cast 解碼輸出格式和本程式預期的不同"
 [ -f "$CONFIG" ] || die "找不到 ${CONFIG}（請照 config.example 建立）"
 [ -f "$KNOWN" ] || die "找不到 ${KNOWN}（請照 known-addresses.example.txt 建立）"
 
@@ -89,25 +92,25 @@ show_addr() {
   if [ -n "$name" ]; then echo "$ind$label$address  $name"; else echo "$ind$label$address"; warn "$ind" "不認識的地址 $address"; fi
 }
 
-# The 比對清單 (README, "The 比對清單"): one JSON object per line in $ROWS, turned into HTML by page().
-# CLEAN replaces every character that could hide or reorder text with U+FFFD, as kiss-sign does.
-CLEAN='def clean: gsub("[\u0001-\u001f\u007f-\u009f\u061c\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]"; "\ufffd");'
+CLEAN='def clean: gsub("[\u0001-\u001f\u007f-\u009f\u00ad\u034f\u061c\u115f\u1160\u180e\u200b-\u200f\u2028-\u202e\u2060-\u206f\u3164\ufe00-\ufe0f\ufeff\uffa0\ufff9-\ufffb\udb40\udc00-\udb40\udc7f\udb40\udd00-\udb40\uddef]"; "\ufffd");'
+[ "$(jq -rn --arg v $'<\'x\xe2\x80\xae' "$CLEAN"'$v | clean | @html')" = $'&lt;&apos;x\xef\xbf\xbd' ] \
+  || die "這個版本的 jq 的 @html 或 gsub 和本程式預期的不同（需要 jq 1.7 以上）"
 group() { jq -nc --arg id "$1" --arg t "$2" "$CLEAN"'{id: ($id|clean), title: ($t|clean)}' >> "$ROWS"; }
 
-# row <id> <key> <value> [name]: a value longer than 32 bytes of hex, or 120 characters, shows as its length and keccak256.
+BYTES_SHOWN=32 TEXT_SHOWN=120
 row() {
-  local r v s=""
-  r=$(jq -nc --arg id "$1" --arg k "$2" --arg v "$3" --arg n "${4:-}" "$CLEAN"'{id: ($id|clean), k: $k, v: ($v|clean), n: ($n|clean)}')
+  local id=$1 key=$2 value=$3 name=${4:-} r v length s=""
+  r=$(jq -nc --arg id "$id" --arg k "$key" --arg v "$value" --arg n "$name" "$CLEAN"'{id: ($id|clean), k: $k, v: ($v|clean), n: ($n|clean)}')
   v=$(jq -r .v <<<"$r")
-  if [[ $v =~ ^0x([0-9a-fA-F]{2})*$ ]] && [ ${#v} -gt 66 ]; then
+  length=$(jq '.v | length' <<<"$r")
+  if [[ $v =~ ^0x([0-9a-fA-F]{2})*$ ]] && [ ${#v} -gt $((2 + 2 * BYTES_SHOWN)) ]; then
     s="$(( (${#v} - 2) / 2 )) bytes，keccak256 $(cast keccak "$v")"
-  elif [ "$(jq '.v | length' <<<"$r")" -gt 120 ]; then
-    s="$(jq '.v | length' <<<"$r") 字元，keccak256 $(cast keccak "$(cast from-utf8 -- "$v")")"
+  elif [ "$length" -gt $TEXT_SHOWN ]; then
+    s="$length 字元，keccak256 $(cast keccak "$(cast from-utf8 -- "$v")")"
   fi
   jq -c --arg s "$s" '.s = $s' <<<"$r" >> "$ROWS"
 }
 
-# An address row: the address checksummed, as kiss-sign prints it, and its name from known-addresses.txt.
 addr_row() {
   local name
   name=$(name_of "$3")
@@ -136,12 +139,13 @@ show_call() {
     echo "$ind   operation: 1 DELEGATECALL"
     warn "$ind   " "呼叫 #$CALLS 是 DELEGATECALL（只有 Safe 最外層呼叫官方 MultiSend 時才正常）: $to"
   fi
-  show_data "$ind   " "$data" "$id"
+  if [ -n "$top" ] && [ -n "$official" ] && [ "$op" = 1 ]; then show_data "$ind   " "$data" "$id" safe-multisend
+  else show_data "$ind   " "$data" "$id"
+  fi
 }
 
-# show_data <indent> <data> <row id>: the call's rows, then each call inside it as <row id>.1, .2 and on.
 show_data() {
-  local ind=$1 data=$2 id=$3 sig json line n=0 args=() reencoded extra addresses blobs b k=0 name
+  local ind=$1 data=$2 id=$3 multisend=${4:-} sig json line n=0 args=() reencoded extra addresses blobs b k=0 name
   if [ "$data" = 0x ]; then echo "${ind}data:      無（只轉 ETH）"; row "$id-data" data 無; return; fi
   sig=$(printf '%s' "$FUNCTIONS" | grep "^${data:0:10} " | cut -d' ' -f2- || true)
   if [ -z "$sig" ]; then
@@ -163,7 +167,7 @@ show_data() {
   fi
   row "$id-fn" 函式 "$sig ${data:0:10}"
   while IFS= read -r line; do
-    line=$(printf '%s' "$line" | sed -E 's/ \[[0-9.]+e[0-9]+\]//g')  # "10001000000 [1e10]" -> "10001000000"
+    line=$(printf '%s' "$line" | sed -E "$HINT")
     n=$((n + 1))
     echo "${ind}  引數 $n:  $line"
     args+=("$line")
@@ -190,7 +194,11 @@ show_data() {
   for b in $addresses; do show_addr "$ind  " "地址: " "$b"; done
 
   case ${sig%%(*} in
-    multiSend) b=$(jq -r '.data[0]' <<<"$json" | tr 'A-F' 'a-f'); split_multisend "$ind" "$b" ;;
+    multiSend)
+      # Only the Safe's own DELEGATECALL to an official MultiSend makes the packed calls the Safe's calls.
+      if [ -n "$multisend" ]; then split_multisend "$ind" "$(jq -r '.data[0]' <<<"$json" | tr 'A-F' 'a-f')"
+      else warn "$ind  " "呼叫 #$CALLS 的 multiSend 不是 Safe 最外層對官方 MultiSend 的 DELEGATECALL，裡面的呼叫沒有拆開"
+      fi ;;
     multicall) b=$(jq -c '.data[0]' <<<"$json"); show_bundle "$ind  " "$b" "$id" ;;
     morphoSupplyCollateral)
       # Morpho calls Bundler3 back with this data, abi.encode(Call[]): a bundle that runs for the Safe.
@@ -202,12 +210,13 @@ show_data() {
       fi ;;
     *)
       for b in $blobs; do
+        if [ ${#b} = 42 ] || [ ${#b} = 66 ]; then continue; fi  # an address or a bytes32 is shown as is, never decoded
         if printf '%s' "$FUNCTIONS" | grep -q "^${b:0:10} "; then
           echo "$ind  內含的呼叫資料（bytes 引數）:"
           k=$((k + 1))
           group "$id.$k" 內含的呼叫
           show_data "$ind    " "$b" "$id.$k"
-        elif [ ${#b} != 42 ] && [ ${#b} != 66 ]; then  # an address or a bytes32 is shown as is
+        else
           warn "$ind  " "呼叫 #$CALLS 有 $(( (${#b} - 2) / 2 )) bytes 的 bytes 引數無法解碼（${b:0:10}…），裡面可能有資料或呼叫沒顯示"
         fi
       done ;;
@@ -329,7 +338,6 @@ check_tx() {
     {nonce: $nonce, hash: $hash, warnings: ($warnings | items), notes: ($notes | items), log: ($log | split("\n") | map(clean)), rows: $rows}' >> "$WORK/txs"
 }
 
-# The page: for each transaction its 比對清單, its warnings and notes, and the full decode. jq's @html escapes every value.
 page() {
   local nonce file
   nonce=$(jq -rs '.[0].nonce' "$WORK/txs")
@@ -395,10 +403,10 @@ page() {
 </div>
 </div>
 </body>
-</html>"' "$WORK/txs" > "$file.tmp"
-  mv "$file.tmp" "$file"
+</html>"' "$WORK/txs" > "$WORK/page"
+  mv "$WORK/page" "$file"
   echo "頁面（完整解碼和比對清單）: $file"
-  echo "打開: open $file"
+  printf '打開: open %q\n' "$file"
 }
 
 main() {
@@ -417,6 +425,8 @@ main() {
   fi
   count=$(jq length <<<"$txs")
   [ "$count" -gt 0 ] || die "這個 nonce 沒有交易"
+  is_uint "$(jq -r '.[0].nonce' <<<"$txs")" || die "nonce 不是整數"
+  rm -f "$OUT/nonce-$(jq -r '.[0].nonce' <<<"$txs").html"  # a page from an earlier run must not outlive a run that stops
   WORK=$(mktemp -d)
   trap 'rm -rf "$WORK"' EXIT
   ROWS=$WORK/rows
@@ -428,7 +438,7 @@ main() {
 }
 
 # The page's look: a copy of the rules kiss-sign's signer report uses (src/research/report-html.ts) that this page needs.
-PAGE_CSS=$(cat <<'EOF'
+IFS= read -r -d '' PAGE_CSS <<'EOF' || true
 :root{
   --bg:#0b0c0e; --hover:#121317; --line:#212328; --line2:#30333a;
   --fg:#eceef0; --fg2:#b0b4ba; --fg3:#8a8f97;
@@ -473,7 +483,7 @@ section>h2 .c{font-weight:400;font-size:var(--t-small);color:var(--fg3);letter-s
 .cl .r:hover{background:var(--hover)}
 .cl .id{font-family:var(--mono);font-size:var(--t-label);color:var(--fg3);overflow-wrap:anywhere}
 .cl .k{color:var(--fg2)}
-.cl .v{font-family:var(--mono);font-size:var(--t-mono);overflow-wrap:anywhere;min-width:0}
+.cl .v{font-family:var(--mono);font-size:var(--t-mono);overflow-wrap:anywhere;min-width:0;unicode-bidi:bidi-override;direction:ltr}
 .cl .nm{color:var(--fg2);font-size:var(--t-small);overflow-wrap:anywhere}
 .cl details>summary,.log details>summary{cursor:pointer}
 .cl .full{display:block;margin-top:6px;color:var(--fg2);font-size:13px;line-height:1.5}
@@ -481,15 +491,13 @@ section>h2 .c{font-weight:400;font-size:var(--t-small);color:var(--fg3);letter-s
 .log>div{white-space:pre-wrap;overflow-wrap:anywhere}
 @media (max-width:720px){.cl .r{grid-template-columns:minmax(0,1fr)}}
 EOF
-)
-PAGE_SYMBOLS=$(cat <<'EOF'
+IFS= read -r -d '' PAGE_SYMBOLS <<'EOF' || true
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <symbol id="ok" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="currentColor"/><path style="stroke:var(--bg)" d="M5 8.2l2 2 4-4.4" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="warn" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.3" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 4.6v4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="11.1" r=".95" fill="currentColor"/></symbol>
   <symbol id="na" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.3" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5.2 8h5.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
 </svg>
 EOF
-)
 CSP="default-src 'none'; style-src 'unsafe-inline'"
 
 # Delete terminal control characters (all but tab and newline), so no field can redraw the screen.

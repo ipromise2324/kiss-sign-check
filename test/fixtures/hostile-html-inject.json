@@ -10,15 +10,15 @@
   "gasPrice": "0",
   "refundReceiver": "0x0000000000000000000000000000000000000000",
   "nonce": "382",
-  "origin": "<script>alert(1)</script>\"><img src=x onerror=alert(1)>‮",
+  "origin": "<script>alert(1)</script>\"><img src=x onerror=alert(1)>\u202e",
   "dataDecoded": {
     "method": "<script>alert(1)</script>",
     "parameters": [
       {
         "name": "\"><img src=x onerror=alert(1)>",
-        "value": "‮evil\u0007"
+        "value": "\u202eevil\u0007"
       }
     ]
   },
-  "safeTxHash": "<script>alert(1)</script>\"><img src=x onerror=alert(1)>‮\u001b[2J"
+  "safeTxHash": "<script>alert(1)</script>\"><img src=x onerror=alert(1)>\u202e\u001b[2J"
 }

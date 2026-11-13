@@ -72,8 +72,11 @@ case_ hostile-hidden-bundler-call 1.4.1 - '+裡有未知函式 selector 0x39029a
 case_ hostile-hidden-callback 1.4.1 - '+Morpho 回呼的 bundle' '+erc20TransferFrom' '+不認識的地址 0x5555555555555555555555555555555555555555'
 case_ hostile-dirty-uint8 1.4.1 - '+資料不是標準 ABI 編碼'
 case_ hostile-big-value 1.4.1 - '+錯誤: 無法編碼這筆交易的欄位'
+case_ hostile-multisend-plain-call 1.4.1 - '+multiSend 不是 Safe 最外層對官方 MultiSend 的 DELEGATECALL' '+Safe 發出的呼叫數: 1' '-呼叫 #2'
+case_ hostile-multisend-in-bundle 1.4.1 - '+multiSend 不是 Safe 最外層對官方 MultiSend 的 DELEGATECALL' '+Safe 發出的呼叫數: 1' '-呼叫 #2'
+case_ hostile-selector-prefix-address 1.4.1 - '-內含的呼叫' '-無法依'
 
-# The 比對清單 of one real transaction, pinned: kiss-sign's test compares its own block with this same file.
+# The 比對清單 of real transactions, pinned: kiss-sign's test compares its own block with this same file.
 # Each program's name column is left out, since each names addresses from its own list.
 checklist_() {
   local name=$1 status=PASS
@@ -84,11 +87,14 @@ checklist_() {
 }
 case_ morpho-deposit-approve-trailer-other-safe 1.4.1 0xda44113d1fa93aa491fd93713d7aaa0ea34ceb28414cbe4ee1d32d796c1342f3
 checklist_ morpho-deposit-approve-trailer-other-safe
+case_ eth-transfer-null-data 1.3.0 0xd3ac54144c716e0044b461c068ffd19742c022b265bd51f2d01f7c8ad0399df6
+checklist_ eth-transfer-null-data
+case_ merkl-claim-two-tokens 1.3.0 0x1b1774a52d845dce2ea6faac3ab5dd01747adda3af6838dde7f4f4107abdd59a
+checklist_ merkl-claim-two-tokens
 
-# Text from the service or from names must reach the page as inert text: escaped, with bidi and control characters replaced.
-html_() {
+hostile_page_() {
   local name=$1 page status=PASS
-  printf '0x9999999999999999999999999999999999999999 %s\n' $'<script>alert(1)</script> "><img src=x onerror=alert(1)> \u202eevil\u200f\x01' > "$WORK/known-hostile.txt"
+  printf '0x9999999999999999999999999999999999999999 %s\n' $'<script>alert(1)</script> "><img src=x onerror=alert(1)> \xe2\x80\xaeevil\xe2\x80\x8f\x01' > "$WORK/known-hostile.txt"
   printf 'SAFE=%s\nSAFE_VERSION=1.4.1\n' "$(jq -r .safe "$TEST/fixtures/$name.json")" > "$WORK/config"
   rm -rf "$WORK/out"
   CHECK_CONFIG="$WORK/config" CHECK_KNOWN="$WORK/known-hostile.txt" CHECK_OUT="$WORK/out" \
@@ -100,7 +106,7 @@ html_() {
   printf '%-45s %s\n' "$name" "$status"
   if [ "$status" != PASS ]; then FAILED=$((FAILED + 1)); fi
 }
-html_ hostile-html-inject
+hostile_page_ hostile-html-inject
 
 if [ "$FAILED" -gt 0 ]; then echo "$FAILED 個測試失敗"; exit 1; fi
 echo "全部通過"

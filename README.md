@@ -7,7 +7,7 @@ kiss-sign checks a transaction against the signer's intent. kiss-sign could be w
 ## What the computer needs
 
 - Foundry, from its official installer (`curl -L https://foundry.paradigm.xyz | bash`, then `foundryup`), for `cast`.
-- `jq` and `curl`. macOS ships `curl`; install `jq` from your package manager.
+- `jq` 1.7 or later, and `curl`. macOS ships `curl`; install `jq` from your package manager. The script checks at start that jq escapes and replaces characters as the 比對清單 needs, and refuses to run otherwise.
 - Bash. The macOS system `/bin/bash` 3.2 is enough.
 
 ## Setup, once
@@ -38,7 +38,7 @@ If several transactions share the nonce, the summary and the page show each one 
 
 ## The 比對清單
 
-kiss-sign `verify` writes the same block after `MATCH`, so the two pages can be read side by side. For the same transaction, decoded the same way, both write it byte for byte the same except the name column. `test/expected/morpho-deposit-approve-trailer-other-safe.checklist.html` pins it for a recorded Bundler3 deposit of another Safe; kiss-sign's tests compare their own block with a copy of that file, so a format change fails one side until both change. kiss-sign's `docs/design.md` (The 比對清單) holds the same rules.
+kiss-sign `verify` writes the same block after `MATCH`, so the two pages can be read side by side. For the same transaction, decoded the same way, both write it byte for byte the same except the name column. `test/expected/` pins it for three recorded transactions of other Safes, a Bundler3 deposit through MultiSend, an ETH transfer and a Merkl claim; kiss-sign's tests compare their own block with a copy of that file, so a format change fails one side until both change. kiss-sign's `docs/design.md` (The 比對清單) holds the same rules.
 
 The block is one HTML line per line, between `<!-- 比對清單 -->` and `<!-- /比對清單 -->`. A group line, `<div class="g"><span class="id">ID</span><span>TITLE</span></div>`, heads each call. Every other line is a row, `<div class="r"><span class="id">ID</span><span class="k">KEY</span><span class="v">VALUE</span><span class="nm">NAME</span></div>`. NAME is each program's own name for the value: here from `known-addresses.txt`, in kiss-sign from its registry or address book, or an amount in whole tokens. It is not compared; compare the addresses.
 
@@ -48,13 +48,14 @@ Calls are numbered as the decode numbers them: `C1` is the Safe transaction itse
 
 Data is `-data` (`無`) when empty, `-data` (the hex) when no known function decodes it, or else `-fn` (signature, a space, selector), `-a1`, `-a2` and on (each argument as `cast decode-calldata` prints it, with the `[1e10]` hints removed), `-extra` (the bytes after the arguments, if any), then the calls inside it.
 
-Every VALUE, ID and NAME has each character from U+0000 to U+001F, U+007F to U+009F, U+061C, U+200B to U+200F, U+202A to U+202E, U+2060 to U+2069 and U+FEFF replaced by U+FFFD, so nothing can hide or reorder text. A VALUE of `0x` and more than 32 bytes of hex shows as `<n> bytes，keccak256 <hash of the bytes>`, any other VALUE longer than 120 characters as `<n> 字元，keccak256 <hash of its UTF-8>`, with the full value in a closed `<details>`. jq 1.6 escapes `'` as `&#39;` and jq 1.7 as `&apos;`; only a `string` argument can hold one.
+Every VALUE, ID and NAME has each character from U+0001 to U+001F, U+007F to U+009F, U+00AD, U+034F, U+061C, U+115F, U+1160, U+180E, U+200B to U+200F, U+2028 to U+202E, U+2060 to U+206F, U+3164, U+FE00 to U+FE0F, U+FEFF, U+FFA0, U+FFF9 to U+FFFB, U+E0000 to U+E007F and U+E0100 to U+E01EF replaced by U+FFFD (Bash cannot carry U+0000), so no control, bidi, zero-width, filler, tag or variation character can hide or reorder text; each value cell is laid out left to right. A VALUE of `0x` and more than 32 bytes of hex shows as `<n> bytes，keccak256 <hash of the bytes>`, any other VALUE longer than 120 characters as `<n> 字元，keccak256 <hash of its UTF-8>`, with the full value in a closed `<details>`.
 
-This script decodes a call inside any `bytes` argument whose selector is in `known-functions.txt`; kiss-sign only where its template says the argument holds a call. Where they differ, this page has more rows, never fewer.
+The two decodes can differ, and then the rows differ and you stop. This script decodes a call inside any `bytes` argument whose selector is in `known-functions.txt` (never a 20- or 32-byte value, which is an address or a `bytes32`); kiss-sign only where its template says the argument holds a call. A function kiss-sign's template decodes that `known-functions.txt` lacks shows here as one `-data` row.
 
 ## What it guarantees
 
 - The hash is computed locally from the same `to`, `value`, `data`, `operation` and gas fields that the decoder prints. The service's own hash and its decoded view are never used, except to warn when its hash differs.
+- A MultiSend is split into the Safe's calls only when it is the Safe transaction itself, a DELEGATECALL to an official MultiSend; any other `multiSend` call is a warning and its calls are not split.
 - Every call is shown, including each call inside a MultiSend, each call of a Morpho Bundler3 `multicall` (with its target and value), the bundle Morpho calls back with from `morphoSupplyCollateral`, and each known call inside any other `bytes` argument. The MultiSend list must split exactly; leftover or missing bytes are a warning.
 - A `bytes` argument that cannot be decoded (other than a 20- or 32-byte value) is a warning, because something may be inside it that is not shown. A CCTP `receiveMessage` always gets two such warnings: its message and attestation are opaque.
 - Every function is looked up by selector in `known-functions.txt`, checked with `cast sig`. An unknown selector is a warning; nothing is guessed or looked up online.
@@ -79,6 +80,6 @@ This script decodes a call inside any `bytes` argument whose selector is in `kno
 /bin/bash test/run.sh
 ```
 
-`test/fixtures/` holds real transactions of other Safes, recorded by kiss-sign, plus crafted hostile cases (`hostile-*`). Each real case must reproduce the recorded on-chain safeTxHash. The tests read both the terminal and the page, compare one 比對清單 with `test/expected/`, and check that `hostile-html-inject`, whose service fields hold `<script>`, `"><img onerror=…>` and bidi and control characters, and whose recipient is named that way in a list made for the test, renders all of it as inert text. Known functions take no `string`, so decoded data can carry no text of its own; names and service fields are the way in. `test/known-addresses.txt` is a list for the tests only; do not use it for signing.
+`test/fixtures/` holds real transactions of other Safes, recorded by kiss-sign, plus crafted hostile cases (`hostile-*`). Each real case must reproduce the recorded on-chain safeTxHash. The tests read both the terminal and the page, compare three 比對清單 with `test/expected/`, and check that `hostile-html-inject`, whose service fields hold `<script>`, `"><img onerror=…>` and bidi and control characters, and whose recipient is named that way in a list made for the test, renders all of it as inert text. Known functions take no `string`, so decoded data can carry no text of its own; names and service fields are the way in. `test/known-addresses.txt` is a list for the tests only; do not use it for signing.
 
 The official MultiSend addresses in `check.sh` come from [safe-global/safe-deployments](https://github.com/safe-global/safe-deployments) at commit `ca9cb0d2d5f5175fc8e41d579f356748d2bc1c62`.
