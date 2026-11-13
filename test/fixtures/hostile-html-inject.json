@@ -1,0 +1,24 @@
+{
+  "safe": "0xAF177c57e369bBD30F47745DbAAF1D225f4B74D0",
+  "to": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+  "value": "0",
+  "data": "0xa9059cbb00000000000000000000000099999999999999999999999999999999999999990000000000000000000000000000000000000000000000000000000000000001",
+  "operation": 0,
+  "gasToken": "0x0000000000000000000000000000000000000000",
+  "safeTxGas": "0",
+  "baseGas": "0",
+  "gasPrice": "0",
+  "refundReceiver": "0x0000000000000000000000000000000000000000",
+  "nonce": "382",
+  "origin": "<script>alert(1)</script>\"><img src=x onerror=alert(1)>\u202e",
+  "dataDecoded": {
+    "method": "<script>alert(1)</script>",
+    "parameters": [
+      {
+        "name": "\"><img src=x onerror=alert(1)>",
+        "value": "\u202eevil\u0007"
+      }
+    ]
+  },
+  "safeTxHash": "<script>alert(1)</script>\"><img src=x onerror=alert(1)>\u202e\u001b[2J"
+}
