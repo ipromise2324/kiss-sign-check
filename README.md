@@ -60,17 +60,7 @@ After you propose the transaction and kiss-sign `verify` prints `MATCH` on your 
 
 It fetches the transactions at that nonce from `api.safe.global`, mainnet only and with no API key. That is its only network request. `./check.sh --file <tx.json>` reads the same JSON from a file instead. The terminal prints a summary (here run with `CHECK_OUT=out`, so the page path is short):
 
-```
-================ 摘要 nonce 1566 ================
-safeTxHash（和錢包顯示的比對）: 0x06b95af7490d3ebb801881ef8ec11e4a1b3444016ee637ec8effb395f408545d
-Safe 發出的呼叫數: 3
-注意:
-  - 呼叫 #3 的資料在引數之後多出 8 bytes: 0x69bacc0e25afea44
-沒有警告
-
-獨立檢查 check.sh 的頁面，nonce 1566（完整解碼和比對清單）: out/nonce-1566.html
-打開: open out/nonce-1566.html
-```
+![The terminal after ./check.sh 1566: the safeTxHash, 3 calls from the Safe, a note that call #3 has 8 bytes after its arguments, no warnings, and the path of the page](docs/readme/terminal.png)
 
 This is a real run, on another Safe's Morpho vault deposit: an `approve` and a Bundler3 `multicall`, batched through MultiSend. Open the page and check four things:
 
