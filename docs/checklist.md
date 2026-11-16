@@ -1,0 +1,18 @@
+# The 比對清單 format
+
+kiss-sign `verify` and `check.sh` write the same block, so the two pages can be compared row by row. This page is the exact format; the [README](../README.md) says how to use it.
+
+kiss-sign `verify` writes the same block after `MATCH`, so the two pages can be read side by side. For the same transaction, decoded the same way, both write it byte for byte the same except the name column. [`test/expected/`](../test/expected/) pins it for three recorded transactions of other Safes, a Bundler3 deposit through MultiSend, an ETH transfer and a Merkl claim; kiss-sign's tests compare their own block with a copy of that file, so a format change fails one side until both change. kiss-sign's `docs/design.md` (The 比對清單) holds the same rules.
+
+The block is one HTML line per line, between `<!-- 比對清單 -->` and `<!-- /比對清單 -->`. A group line, `<div class="g"><span class="id">ID</span><span>TITLE</span></div>`, heads each call. Every other line is a row, `<div class="r"><span class="id">ID</span><span class="k">KEY</span><span class="v">VALUE</span><span class="nm">NAME</span></div>`. NAME is each program's own name for the value: here from `known-addresses.txt`, in kiss-sign from its registry or address book, or an amount in whole tokens. It is not compared; compare the addresses.
+
+In order: the group `tx` (交易) with `tx-safeTxHash`, `tx-domain` (the domain separator), `tx-message` (the message hash) and `tx-nonce`; the lines of call `C1`; the group `end` (總計) with `end-count`, the number of calls the Safe makes.
+
+Calls are numbered as the decode numbers them: `C1` is the Safe transaction itself, and an official MultiSend's calls follow as `C2`, `C3` and on. A call's lines are a group `呼叫 #N`, then `-to` (checksummed), `-value` (wei), `-op` (`0 CALL` or `1 DELEGATECALL`), then its data. A call inside another call takes its parent's id and its place among the parent's inner calls: `C3.1`, `C3.2`, and `C3.1.1` under `C3.1`. A Bundler3 `multicall`'s calls are groups `Bundler3 呼叫 i/n` with `-to` and `-value`, then their data; a call decoded from another `bytes` argument, the bundle of `morphoSupplyCollateral` included, is a group `內含的呼叫` with only its data.
+
+Data is `-data` (`無`) when empty, `-data` (the hex) when no known function decodes it, or else `-fn` (signature, a space, selector), `-a1`, `-a2` and on (each argument as `cast decode-calldata` prints it, with the `[1e10]` hints removed), `-extra` (the bytes after the arguments, if any), then the calls inside it.
+
+Every VALUE, ID and NAME has each character from U+0001 to U+001F, U+007F to U+009F, U+00AD, U+034F, U+061C, U+115F, U+1160, U+180E, U+200B to U+200F, U+2028 to U+202E, U+2060 to U+206F, U+3164, U+FE00 to U+FE0F, U+FEFF, U+FFA0, U+FFF9 to U+FFFB, U+E0000 to U+E007F and U+E0100 to U+E01EF replaced by U+FFFD (Bash cannot carry U+0000), so no control, bidi, zero-width, filler, tag or variation character can hide or reorder text; each value cell is laid out left to right. A VALUE of `0x` and more than 32 bytes of hex shows as `<n> bytes，keccak256 <hash of the bytes>`, any other VALUE longer than 120 characters as `<n> 字元，keccak256 <hash of its UTF-8>`, with the full value in a closed `<details>`.
+
+The two decodes can differ, and then the rows differ and you stop. `check.sh` decodes a call inside any `bytes` argument whose selector is in `known-functions.txt` (never a 20- or 32-byte value, which is an address or a `bytes32`); kiss-sign only where its template says the argument holds a call. A function kiss-sign's template decodes that `known-functions.txt` lacks shows in `check.sh` as one `-data` row.
+

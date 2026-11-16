@@ -1,85 +1,153 @@
-# kiss-sign-check
+<h1 align="center">kiss-sign-check</h1>
 
-`check.sh` shows exactly what a Safe transaction does, so a signer can check it on a second computer that runs no AI and no kiss-sign. It is one short Bash script that uses only Foundry's `cast`, `curl` and `jq`.
+<p align="center"><b><i>A second look at a Safe transaction, on a computer with no AI.</i></b></p>
 
-kiss-sign checks a transaction against the signer's intent. kiss-sign could be wrong or tampered with, and so could the Safe Transaction Service. This script trusts neither. It computes the hash the wallet signs and decodes every call itself, from the same fields, and labels addresses only from a list you wrote by hand.
+[kiss-sign](https://github.com/ipromise2324/kiss-sign) checks a Safe transaction against what you said you wanted. But kiss-sign runs on your work computer, next to your AI, and that computer, the AI or kiss-sign itself can be wrong or tampered with. `check.sh` is the hardened tier's second opinion: one Bash script, run on a second computer that has no AI and no kiss-sign, that decodes the same transaction on its own. When both pages show the same rows, an attacker has had to fool two computers, not one.
 
-## What the computer needs
+![The kiss-sign verify page (MATCH) on the work computer and the check.sh page on the second computer, side by side, with the same hashes and the same calls row by row](docs/readme/side-by-side.png)
 
-- Foundry, from its official installer (`curl -L https://foundry.paradigm.xyz | bash`, then `foundryup`), for `cast`.
-- `jq` 1.7 or later, and `curl`. macOS ships `curl`; install `jq` from your package manager. The script checks at start that jq escapes and replaces characters as the 比對清單 needs, and refuses to run otherwise.
-- Bash. The macOS system `/bin/bash` 3.2 is enough.
+## Contents
 
-## Setup, once
+- [Why](#why)
+- [How it works](#how-it-works)
+- [What it checks](#what-it-checks)
+- [What it does not do](#what-it-does-not-do)
+- [Tests](#tests)
+- [Contributing](#contributing)
+- [Disclaimer](#disclaimer)
+- [Donate](#donate)
+- [License](#license)
 
-1. Read `check.sh` in full, once. It is meant to be read in one sitting. Then pin the commit you read: `git rev-parse HEAD`, and check it again before each use.
-2. `cp config.example config` and set `SAFE` to your Safe and `SAFE_VERSION` to its version (as the Safe web app shows it). A wrong version gives a hash that will not match the wallet.
-3. Write `known-addresses.txt` by hand, one `0x<address> <name>` per line, from each protocol's official documentation. Never copy it from the work computer. `known-addresses.example.txt` shows the format. The official Safe MultiSend addresses are built into `check.sh`; listing one again is harmless.
+## Why
 
-`config`, `known-addresses.txt` and `out/` are ignored by git and stay on this computer.
+- **One computer is one point of failure.** If malware or a prompt-injected AI controls your work computer, it can change what kiss-sign shows you. `check.sh` shares nothing with it: not the computer, not the code, not the address list.
+- **The Safe Transaction Service's decode is not used.** The service and the Safe web app both show a decoded view of the transaction. `check.sh` ignores it. It computes the hash your hardware wallet signs and decodes every call itself, from the raw `to`, `value`, `data` and `operation` fields.
+- **You can read all of it.** It is about 500 lines of Bash that use only Foundry's `cast`, `curl` and `jq`, with no packages to install. You read it once, in one sitting, and pin the commit you read.
 
-## Each signing
+## How it works
+
+### Set up the second computer, once
+
+Install Foundry for `cast`, and `jq` 1.7 or later:
+
+```sh
+curl -L https://foundry.paradigm.xyz | bash
+foundryup
+```
+
+macOS ships `curl` and Bash 3.2, which is enough. Then:
+
+```sh
+git clone https://github.com/ipromise2324/kiss-sign-check.git
+cd kiss-sign-check
+less check.sh             # read it in full, once
+git rev-parse HEAD        # write down the commit you read; check it again before each use
+cp config.example config  # set SAFE to your Safe and SAFE_VERSION to its version, as the Safe web app shows it
+```
+
+A wrong `SAFE_VERSION` gives a hash that will not match your wallet.
+
+Then write `known-addresses.txt` by hand, one `0x<address> <name>` per line, copying each address from the protocol's official documentation. Never copy it from the work computer: the point is that this list does not come from there. The official Safe MultiSend addresses are built in. `config`, `known-addresses.txt` and `out/` are ignored by git and stay on this computer.
+
+### At each signing
+
+After you propose the transaction and kiss-sign `verify` prints `MATCH` on your work computer, run on the second computer:
+
+```sh
+./check.sh 1566
+```
+
+It fetches the transactions at that nonce from `api.safe.global`, mainnet only and with no API key. That is its only network request. `./check.sh --file <tx.json>` reads the same JSON from a file instead. The terminal prints a summary:
 
 ```
-./check.sh <nonce>
+================ 摘要 nonce 1566 ================
+safeTxHash（和錢包顯示的比對）: 0x06b95af7490d3ebb801881ef8ec11e4a1b3444016ee637ec8effb395f408545d
+Safe 發出的呼叫數: 3
+注意:
+  - 呼叫 #3 的資料在引數之後多出 8 bytes: 0x69bacc0e25afea44
+沒有警告
+
+獨立檢查 check.sh 的頁面，nonce 1566（完整解碼和比對清單）: out/nonce-1566.html
+打開: open out/nonce-1566.html
 ```
 
-The script fetches the transactions at that nonce from `api.safe.global` (mainnet only, no API key), its only network request. `./check.sh --file <tx.json>` reads the same JSON from a file instead.
+This is a real run, on another Safe's Morpho vault deposit: an `approve` and a Bundler3 `multicall`, batched through MultiSend. Open the page and check three things:
 
-The terminal shows a summary: the safeTxHash, the number of calls, every note and every `!! 警告`. The rest goes to a page, `out/nonce-<nonce>.html` next to the script (`CHECK_OUT` names another folder), whose path and `open` command the summary ends with. The page has no script and loads nothing (its Content-Security-Policy is `default-src 'none'; style-src 'unsafe-inline'`); every value from outside reaches it through jq's `@html`. Its title and header read `獨立檢查 check.sh · nonce <nonce>`, with a line saying it only decodes and does not judge, in an accent colour kiss-sign `verify`'s page does not use, so the two pages are not mistaken for each other side by side. It shows the 比對清單, the warnings, the notes, and the full decode with every address named, long lines folded.
+1. **The hashes.** Compare the safeTxHash, domain hash and message hash with your hardware wallet's screen, character by character. If they differ, do not sign.
+2. **The 比對清單 (comparison list).** Compare it with the one on kiss-sign `verify`'s page, row by row, as in the picture above. Every row must be equal, except the name column on the right, where each side names addresses from its own list. If any other row differs, stop.
+3. **The warnings.** Read every `!! 警告`. A warning means look closer, not necessarily stop. A note, such as the 8 bytes above, is a fact of the decode that `check.sh` does not judge.
 
-Then:
+The page also holds the full decode, with every call and every address named from your list:
 
-1. Compare the `safeTxHash` with the hash your hardware wallet shows. If they differ, do not sign.
-2. Compare the page's 比對清單 with the one on kiss-sign `verify`'s page, row by row. Any row whose value differs means stop.
-3. Read every `!! 警告` line. A warning means look closer, not necessarily stop.
+![The check.sh page's full decode of nonce 1566: the Safe's DELEGATECALL into the official MultiSend, the USDC approve to Morpho GeneralAdapter1, and the Bundler3 multicall with its two calls, erc20TransferFrom and erc4626Deposit into the Hyperithm USDC Apex vault](docs/readme/decode.png)
 
-If several transactions share the nonce, the summary and the page show each one with its hash. Sign only the one whose hash the wallet shows.
+If several transactions share the nonce, the summary and the page show each one with its hash. Sign only the one whose hash your wallet shows.
 
-## The 比對清單
+The page and the terminal are in Traditional Chinese. The page runs no script and loads nothing from outside. Its accent colour differs from kiss-sign's, so the two pages are not mistaken for each other side by side. The row format is in [docs/checklist.md](docs/checklist.md).
 
-kiss-sign `verify` writes the same block after `MATCH`, so the two pages can be read side by side. For the same transaction, decoded the same way, both write it byte for byte the same except the name column. `test/expected/` pins it for three recorded transactions of other Safes, a Bundler3 deposit through MultiSend, an ETH transfer and a Merkl claim; kiss-sign's tests compare their own block with a copy of that file, so a format change fails one side until both change. kiss-sign's `docs/design.md` (The 比對清單) holds the same rules.
+### Teach it a new function
 
-The block is one HTML line per line, between `<!-- 比對清單 -->` and `<!-- /比對清單 -->`. A group line, `<div class="g"><span class="id">ID</span><span>TITLE</span></div>`, heads each call. Every other line is a row, `<div class="r"><span class="id">ID</span><span class="k">KEY</span><span class="v">VALUE</span><span class="nm">NAME</span></div>`. NAME is each program's own name for the value: here from `known-addresses.txt`, in kiss-sign from its registry or address book, or an amount in whole tokens. It is not compared; compare the addresses.
+`check.sh` decodes only the functions in [`known-functions.txt`](known-functions.txt), one signature per line, and checks each with `cast sig`. It never guesses a function or looks one up online. Today the list covers ERC-20, ERC-4626 vaults, Safe MultiSend, Morpho Bundler3 and its adapters, Morpho Blue and its reward distributor, Uniswap Permit2's `approve`, Merkl and Fluid claims, CCTP, and the Safe's own admin functions.
 
-In order: the group `tx` (交易) with `tx-safeTxHash`, `tx-domain` (the domain separator), `tx-message` (the message hash) and `tx-nonce`; the lines of call `C1`; the group `end` (總計) with `end-count`, the number of calls the Safe makes.
+It does not yet hold the Uniswap router's `execute(bytes,bytes[],uint256)` or CoW's `setPreSignature(bytes,bool)`, which kiss-sign's Uniswap and CoW templates call. For those transactions `check.sh` shows the call as raw data with an unknown-function warning, so its rows differ from `verify`'s. To check them, add the signature from the protocol's verified source and review that one-line change like any other.
 
-Calls are numbered as the decode numbers them: `C1` is the Safe transaction itself, and an official MultiSend's calls follow as `C2`, `C3` and on. A call's lines are a group `呼叫 #N`, then `-to` (checksummed), `-value` (wei), `-op` (`0 CALL` or `1 DELEGATECALL`), then its data. A call inside another call takes its parent's id and its place among the parent's inner calls: `C3.1`, `C3.2`, and `C3.1.1` under `C3.1`. A Bundler3 `multicall`'s calls are groups `Bundler3 呼叫 i/n` with `-to` and `-value`, then their data; a call decoded from another `bytes` argument, the bundle of `morphoSupplyCollateral` included, is a group `內含的呼叫` with only its data.
+## What it checks
 
-Data is `-data` (`無`) when empty, `-data` (the hex) when no known function decodes it, or else `-fn` (signature, a space, selector), `-a1`, `-a2` and on (each argument as `cast decode-calldata` prints it, with the `[1e10]` hints removed), `-extra` (the bytes after the arguments, if any), then the calls inside it.
-
-Every VALUE, ID and NAME has each character from U+0001 to U+001F, U+007F to U+009F, U+00AD, U+034F, U+061C, U+115F, U+1160, U+180E, U+200B to U+200F, U+2028 to U+202E, U+2060 to U+206F, U+3164, U+FE00 to U+FE0F, U+FEFF, U+FFA0, U+FFF9 to U+FFFB, U+E0000 to U+E007F and U+E0100 to U+E01EF replaced by U+FFFD (Bash cannot carry U+0000), so no control, bidi, zero-width, filler, tag or variation character can hide or reorder text; each value cell is laid out left to right. A VALUE of `0x` and more than 32 bytes of hex shows as `<n> bytes，keccak256 <hash of the bytes>`, any other VALUE longer than 120 characters as `<n> 字元，keccak256 <hash of its UTF-8>`, with the full value in a closed `<details>`.
-
-The two decodes can differ, and then the rows differ and you stop. This script decodes a call inside any `bytes` argument whose selector is in `known-functions.txt` (never a 20- or 32-byte value, which is an address or a `bytes32`); kiss-sign only where its template says the argument holds a call. A function kiss-sign's template decodes that `known-functions.txt` lacks shows here as one `-data` row.
-
-## What it guarantees
-
-- The hash is computed locally from the same `to`, `value`, `data`, `operation` and gas fields that the decoder prints. The service's own hash and its decoded view are never used, except to warn when its hash differs.
-- A MultiSend is split into the Safe's calls only when it is the Safe transaction itself, a DELEGATECALL to an official MultiSend; any other `multiSend` call is a warning and its calls are not split.
-- Every call is shown, including each call inside a MultiSend, each call of a Morpho Bundler3 `multicall` (with its target and value), the bundle Morpho calls back with from `morphoSupplyCollateral`, and each known call inside any other `bytes` argument. The MultiSend list must split exactly; leftover or missing bytes are a warning.
-- A `bytes` argument that cannot be decoded (other than a 20- or 32-byte value) is a warning, because something may be inside it that is not shown. A CCTP `receiveMessage` always gets two such warnings: its message and attestation are opaque.
-- Every function is looked up by selector in `known-functions.txt`, checked with `cast sig`. An unknown selector is a warning; nothing is guessed or looked up online.
-- The decoded arguments are encoded again and compared with the data. Extra bytes after the arguments are a note, not a warning: `呼叫 #N 的資料在引數之後多出 K bytes: 0x…`, a decode fact this script does not judge, in the page's 注意 section and as the call's `-extra` row. Any other difference is a warning.
-- Every address is named from your list, or flagged as unknown.
-- Warnings: non-zero `safeTxGas`, `baseGas`, `gasPrice`, `gasToken` or `refundReceiver`; a DELEGATECALL other than the Safe's own call into an official MultiSend; a plain CALL into a MultiSend; a zero `to` inside a MultiSend (MultiSend 1.5.0 turns it into a call to the Safe); an unknown function or address; ETH sent along with a call; a Safe admin function anywhere; several transactions at one nonce; a service hash that differs or is malformed.
-- Terminal control characters are removed from everything the script prints, so no field from the service can redraw the screen. On the page, every value goes through jq's `@html`, and control, bidi and zero-width characters become U+FFFD. The script also checks at start that `cast` decodes in the shape it expects, and refuses to run otherwise.
-- The output names the config and address list it used, since `CHECK_CONFIG` and `CHECK_KNOWN` (used by the tests) can replace them.
+- **The hash, computed locally.** The safeTxHash comes from the same `to`, `value`, `data`, `operation` and gas fields the decode prints. The service's own hash is used only to warn when it differs.
+- **Every call.** Each call inside a MultiSend, each call of a Bundler3 `multicall` with its target and value, the bundle Morpho calls back with from `morphoSupplyCollateral`, and each known call inside any other `bytes` argument. A MultiSend is split into the Safe's calls only when the Safe itself DELEGATECALLs an official MultiSend, and the list must split exactly.
+- **The decode is exact.** The decoded arguments are encoded again and compared with the data. Bytes after the arguments are a note; any other difference is a warning.
+- **Every address is named, or flagged.** Names come only from your `known-addresses.txt` and the built-in MultiSend list.
+- **Warnings for what usually means trouble:**
+  - non-zero `safeTxGas`, `baseGas`, `gasPrice`, `gasToken` or `refundReceiver`;
+  - a DELEGATECALL other than the Safe's own call into an official MultiSend, or a plain CALL into a MultiSend;
+  - a zero `to` inside a MultiSend;
+  - an unknown function or address, or a `bytes` argument it cannot decode;
+  - ETH sent along with a call;
+  - a Safe admin function anywhere, such as adding an owner;
+  - several transactions at one nonce;
+  - a service hash that differs or is malformed.
+- **Nothing from outside can hide or redraw text.** Control, bidi and zero-width characters become U+FFFD on the page and are removed from the terminal, and every value reaches the page through `jq`'s `@html`. At start it checks that `cast` and `jq` behave as it expects, and refuses to run otherwise.
 
 ## What it does not do
 
-- It does not judge whether a contract is the protocol's real one, or whether the transaction matches what you meant to do. kiss-sign does that; this script only shows what the transaction is.
-- It does not simulate the transaction or read the chain.
-- It does not decode bytes that are not a known call (for example a CCTP message), so addresses packed inside them are not named. It warns instead.
-- A 32-byte `bytes` value inside an unknown container is shown raw without a warning, since it cannot be told apart from a `bytes32`.
-- It does not format amounts by token decimals. Amounts are raw integers, as kiss-sign prints them.
-- Mainnet (chain id 1) only. Safe versions 1.1.0, 1.1.1, 1.2.0, 1.3.0, 1.4.0, 1.4.1 and 1.5.0.
+- **It does not judge.** It does not know whether a contract is the protocol's real one, or whether the transaction is what you meant. kiss-sign does that, against your card. `check.sh` only shows what the transaction is, so read its calls against what you meant to do.
+- **It does not read the chain or simulate.** It sees the transaction, not its effects.
+- **Bytes that are not a known call stay opaque.** A CCTP message is shown raw with a warning, and so would a Uniswap router's inputs, which hold the swap's recipient and minimum out, even with `execute` in the list. Addresses packed inside such bytes are not named. A 32-byte `bytes` value inside an unknown container is shown raw without a warning, since it cannot be told apart from a `bytes32`.
+- **Amounts are raw integers**, in the token's base units, as kiss-sign's comparison list prints them.
+- **Mainnet only**, and Safe versions 1.1.0, 1.1.1, 1.2.0, 1.3.0, 1.4.0, 1.4.1 and 1.5.0.
 
 ## Tests
 
-```
+```sh
 /bin/bash test/run.sh
 ```
 
-`test/fixtures/` holds real transactions of other Safes, recorded by kiss-sign, plus crafted hostile cases (`hostile-*`). Each real case must reproduce the recorded on-chain safeTxHash. The tests read both the terminal and the page, compare three 比對清單 with `test/expected/`, and check that `hostile-html-inject`, whose service fields hold `<script>`, `"><img onerror=…>` and bidi and control characters, and whose recipient is named that way in a list made for the test, renders all of it as inert text. Known functions take no `string`, so decoded data can carry no text of its own; names and service fields are the way in. `test/known-addresses.txt` is a list for the tests only; do not use it for signing.
+[`test/fixtures/`](test/fixtures/) holds real transactions of other Safes, recorded by kiss-sign, and crafted hostile cases (`hostile-*`). Each real case must reproduce its recorded on-chain safeTxHash. The tests read both the terminal and the page, compare three comparison lists with [`test/expected/`](test/expected/), which kiss-sign's own tests also pin, and check that a transaction whose fields hold `<script>`, HTML and bidi characters renders all of it as inert text. `test/known-addresses.txt` is for the tests only; do not sign with it.
 
 The official MultiSend addresses in `check.sh` come from [safe-global/safe-deployments](https://github.com/safe-global/safe-deployments) at commit `ca9cb0d2d5f5175fc8e41d579f356748d2bc1c62`.
+
+## Contributing
+
+Open an issue or a pull request. Keep `check.sh` short enough to read in one sitting, and keep it to `cast`, `curl` and `jq`. A change to the comparison list's format must change kiss-sign in step; see [docs/checklist.md](docs/checklist.md).
+
+Report security problems as an issue too.
+
+## Disclaimer
+
+`check.sh` is provided as is, without warranty of any kind. It can be wrong: a bug, a wrong address list, a compromised Safe Transaction Service or a compromised second computer can make it show rows that match a transaction you did not mean. Matching rows say only that two programs decoded the same bytes the same way. They do not say that a protocol, a contract or a transaction is safe, and nothing here is financial, legal or security advice.
+
+You alone are responsible for every transaction you sign. The authors and contributors are not liable for any loss, however it arises, including through the use of kiss-sign or kiss-sign-check.
+
+## Donate
+
+If kiss-sign-check is useful to you, you can support it with ETH on Ethereum mainnet:
+
+```
+TODO: donation address
+```
+
+Copy the address from this page on GitHub, and compare it in full before you send.
+
+## License
+
+[MIT](LICENSE). Anyone may use, copy, change, publish and sell kiss-sign-check, provided the license notice stays with it.
