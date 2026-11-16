@@ -64,8 +64,8 @@ It fetches the transactions at that nonce from `api.safe.global`, mainnet only a
 
 This is a real run, on another Safe's Morpho vault deposit: an `approve` and a Bundler3 `multicall`, batched through MultiSend. Open the page and check four things:
 
-1. **The hashes.** Compare the domain hash and message hash with your hardware wallet's screen, character by character, and the safeTxHash with the Safe web app's. If they differ, do not sign.
-2. **The 比對清單 (comparison list).** Compare it with the one on kiss-sign `verify`'s page, row by row, as in the picture above. Every row must be equal, except the name column on the right, where each side names addresses from its own list. If any other row differs, stop.
+1. **The hashes.** Compare them with your hardware wallet's screen, character by character: the domain hash and message hash, or the safeTxHash if that is what your wallet shows. If they differ, do not sign.
+2. **The 比對清單 (comparison list).** Compare it with the one on kiss-sign `verify`'s page, row by row, as in the picture above. Every row must be equal, except the name column on the right, where each side names addresses from its own list, and the rows of a call `check.sh` cannot decode yet (see [Teach it a new function](#teach-it-a-new-function)). If any other row differs, stop.
 3. **The warnings.** Read every `!! 警告`. A warning means look closer, not necessarily stop. A note, such as the 8 bytes above, is a fact of the decode that `check.sh` does not judge.
 4. **The calls themselves.** Read every call's `to`, amount and recipient against what you meant to do. Equal rows prove only that both computers decoded the same bytes the same way: a work computer that proposed the wrong transaction can still show its true decode.
 
@@ -73,32 +73,32 @@ The page also holds the full decode, with every call and every address named fro
 
 ![The check.sh page's full decode of nonce 1566: the Safe's DELEGATECALL into the official MultiSend, the USDC approve to Morpho GeneralAdapter1, and the Bundler3 multicall with its two calls, erc20TransferFrom and erc4626Deposit into the Hyperithm USDC Apex vault](docs/readme/decode.png)
 
-If several transactions share the nonce, the summary and the page show each one with its hash. Sign only the one whose message hash your wallet shows.
+If several transactions share the nonce, the summary and the page show each one with its hash. Sign only the one whose hashes your wallet shows.
 
 The page and the terminal are in Traditional Chinese. The page runs no script and loads nothing from outside. Its accent colour differs from kiss-sign's, so the two pages are not mistaken for each other side by side. The row format is in [docs/checklist.md](docs/checklist.md).
 
 ### Teach it a new function
 
-`check.sh` decodes only the functions in [`known-functions.txt`](known-functions.txt), one signature per line, and computes each selector with `cast sig`. It never guesses a function or looks one up online. Today the list covers ERC-20, ERC-4626 vaults, Safe MultiSend, Morpho Bundler3 and its adapters, Morpho Blue's `setAuthorization` and its reward distributor's `claim`, Uniswap Permit2's `approve`, Merkl and Fluid claims, CCTP's `receiveMessage`, and the Safe's own admin functions.
+`check.sh` decodes only the functions in [`known-functions.txt`](known-functions.txt), one signature per line, and computes each selector with `cast sig`. It never guesses a function or looks one up online. Today the list covers ERC-20, ERC-4626 vaults, Safe MultiSend, Morpho Bundler3 and its adapters, Morpho Blue's `setAuthorization` and Morpho's Universal Rewards Distributor's `claim`, Uniswap Permit2's `approve`, Merkl and Fluid claims, CCTP's `receiveMessage`, and the Safe's own admin functions.
 
-It does not yet hold the Uniswap router's `execute(bytes,bytes[],uint256)` or CoW's `setPreSignature(bytes,bool)`, which kiss-sign's Uniswap and CoW templates call. For those transactions `check.sh` shows the call as raw data with an unknown-function warning, so its rows differ from `verify`'s. Adding a signature from the protocol's verified source, reviewed like any other change, makes its arguments decode and the rows comparable. It decodes only the arguments: a Uniswap swap's inputs stay raw bytes, and a CoW order's tokens, receiver and amounts are not in the transaction at all, only its UID, so those rest on kiss-sign's checks.
+It does not yet hold the Uniswap router's `execute(bytes,bytes[],uint256)` or CoW's `setPreSignature(bytes,bool)`, which kiss-sign's Uniswap and CoW templates call. For those transactions `check.sh` shows the call as raw data with an unknown-function warning, so its rows differ from `verify`'s. Adding a signature from the protocol's verified source, reviewed like any other change, makes its arguments decode and the rows comparable. It decodes only the arguments: a Uniswap swap's inputs stay raw bytes, and a CoW order's tokens, receiver and amounts are not in the transaction at all, only its UID, which still shows as undecodable bytes with a warning, so those rest on kiss-sign's checks.
 
 ## What it checks
 
 - **The hash, computed locally.** The safeTxHash comes from the same `to`, `value`, `data`, `operation` and gas fields the decode prints. The service's own hash is used only to warn when it differs.
 - **Every call.** Each call inside a MultiSend, each call of a Bundler3 `multicall` with its target and value, the bundle Morpho calls back with from `morphoSupplyCollateral`, and each known call inside any other `bytes` argument. A MultiSend is split into the Safe's calls only when the Safe itself DELEGATECALLs an official MultiSend, and the list must split exactly.
 - **The decode is exact.** The decoded arguments are encoded again and compared with the data. Bytes after the arguments are a note; any other difference is a warning.
-- **Every address is named, or flagged.** Names come only from your `known-addresses.txt` and the built-in MultiSend list.
+- **Every address is named, or flagged.** Names come only from your `known-addresses.txt`, the built-in MultiSend list, the Safe in your `config` and the zero address.
 - **Warnings for what usually means trouble:**
   - non-zero `safeTxGas`, `baseGas`, `gasPrice`, `gasToken` or `refundReceiver`;
   - a DELEGATECALL other than the Safe's own call into an official MultiSend, or a plain CALL into a MultiSend;
   - a zero `to` inside a MultiSend;
   - an unknown function or address, or a `bytes` argument it cannot decode;
-  - ETH sent along with a call of the Safe or of a MultiSend (a Bundler3 call's value is shown, not warned on);
+  - ETH sent along with a call that has data, from the Safe or a MultiSend (a Bundler3 call's value is shown, not warned on);
   - a Safe admin function anywhere, such as adding an owner;
   - several transactions at one nonce;
   - a service hash that differs or is malformed.
-- **Text from outside cannot run or hide on the page.** Every value reaches the page through `jq`'s `@html`, and control, bidi and zero-width characters become U+FFFD. The terminal has its control characters (C0 and DEL) removed. At start it checks that `cast` and `jq` behave as it expects, and refuses to run otherwise.
+- **Text from outside cannot run or hide on the page.** Every value reaches the page through `jq`'s `@html`, and control, bidi and zero-width characters become U+FFFD. The terminal has its control characters removed (C0 except tab and newline, and DEL). At start it checks that `cast` and `jq` behave as it expects, and refuses to run otherwise.
 
 ## What it does not do
 
