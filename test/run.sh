@@ -10,9 +10,10 @@ FAILED=0
 # Sourcify's answers, recorded by test/record-sourcify.sh, so no test reads the network.
 export CHECK_SOURCIFY_DIR=$TEST/sourcify
 
-# Each case runs in the language L names; HASH is the start of the summary's safeTxHash line in it. LAYOUTS is the
-# layout list a case reads.
-L=zh-TW HASH='safeTxHash（和錢包顯示的比對）: ' LAYOUTS=$TEST/../known-layouts.txt
+# Each case runs in the language L names; HASH is the start of the summary's safeTxHash line in it.
+L=zh-TW HASH='safeTxHash（和錢包顯示的比對）: ' HINTS=''
+hints_of() { cat "$TEST/expected/hints/$1.txt"; }
+CAP_ID_HINTS='v1 C1.1.1-a1=abi(string,address) C1.2.1-a1=abi(string,address)'
 
 # case <fixture> <Safe version> <recorded safeTxHash, or - for a crafted case> [+text that must appear | -text that must not]...
 case_() {
@@ -20,8 +21,8 @@ case_() {
   shift 3
   printf 'SAFE=%s\nSAFE_VERSION=%s\nLANGUAGE=%s\n' "$(jq -r '(.results[0] // .).safe' "$TEST/fixtures/$name.json")" "$version" "$L" > "$WORK/config"
   rm -rf "$WORK/out"
-  out=$(CHECK_CONFIG="$WORK/config" CHECK_KNOWN="$TEST/known-addresses.txt" CHECK_LAYOUTS="$LAYOUTS" CHECK_OUT="$WORK/out" \
-    /bin/bash "$TEST/../check.sh" --file "$TEST/fixtures/$name.json" 2>&1) || true
+  out=$(CHECK_CONFIG="$WORK/config" CHECK_KNOWN="$TEST/known-addresses.txt" CHECK_OUT="$WORK/out" \
+    /bin/bash "$TEST/../check.sh" --file "$TEST/fixtures/$name.json" ${HINTS:+--hints "$HINTS"} 2>&1) || true
   if [ -d "$WORK/out" ]; then out="$out"$'\n'"$(cat "$WORK"/out/*.html)"; fi
   if [ "$hash" != - ] && ! grep -qF "$HASH$hash" <<<"$out"; then status="FAIL (hash)"; fi
   if [ "$L" = en ] && grep -v '比對清單 -->$' <<<"$out" | LC_ALL=en_US.UTF-8 grep -q '[一-龥（），：；。、]'; then status="FAIL (Chinese in English output)"; fi
@@ -68,14 +69,30 @@ case_ permit2-unlimited-approval 1.4.1 0x5ddf364b6199c45b5bf4e631a52083d125bfadf
 case_ cctp-receive-then-call 1.4.1 0xaffef7919a235fa81f6ddfcd5b140eb0a56f618b47d17a124fc95fa9735f002c \
   '+receiveMessage(bytes,bytes)' '+有 248 bytes 的 bytes 引數無法解碼' '+transferUSDCToCCTP(uint256,uint32)'
 case_ cow-swap-usdc 1.3.0 0x8716f2b4b77fab0162bb87c9f95b49f19ef16a14306677c71dbba39c759c2b66 \
-  '+setPreSignature(bytes,bool)' '+引數 1 依 packed bytes32 address uint32 解讀（known-layouts.txt）:' '+沒有警告'
+  '+setPreSignature(bytes,bool)' '+有 56 bytes 的 bytes 引數無法解碼（0xc45125ce…）' '-部分 1:' '+hints:          無'
 case_ uniswap-swap-approve-usdt-usdc 1.4.1 0xdad1c654fc116f37f62b76f974fd4dc865dbe58387204cbc2355babd99c5de49 \
-  '+execute(bytes,bytes[],uint256)' '+在引數之後多出 22 bytes' '+Safe 發出的呼叫數: 4' '-不認識的地址' '+沒有警告'
+  '+execute(bytes,bytes[],uint256)' '+在引數之後多出 22 bytes' '+Safe 發出的呼叫數: 4' '-不認識的地址' '+有 1024 bytes 的 bytes 引數無法解碼'
 case_ vault-v2-cap-submit-flowmark 1.4.1 0x930ff75c6abf5ea3f1521515052823baa0ebca9034ec0527ddf48fbfae16721e \
-  '+multicall(bytes[])' '+submit(bytes)' '+increaseAbsoluteCap(bytes,uint256)' '+increaseRelativeCap(bytes,uint256)' '-Bundler3' '-不認識的地址' '+沒有警告'
+  '+multicall(bytes[])' '+submit(bytes)' '+increaseAbsoluteCap(bytes,uint256)' '+increaseRelativeCap(bytes,uint256)' '-Bundler3' '-不認識的地址' \
+  '+有 288 bytes 的 bytes 引數無法解碼'
+HINTS=$(hints_of cow-swap-usdc)
+case_ cow-swap-usdc 1.3.0 0x8716f2b4b77fab0162bb87c9f95b49f19ef16a14306677c71dbba39c759c2b66 \
+  '+C1-a1 依 packed bytes32 address uint32 解讀（--hints）:' '+依 --hints 的讀法顯示' "+hints:          $HINTS" '-無法解碼'
+HINTS=$(hints_of uniswap-swap-approve-usdt-usdc)
+case_ uniswap-swap-approve-usdt-usdc 1.4.1 0xdad1c654fc116f37f62b76f974fd4dc865dbe58387204cbc2355babd99c5de49 \
+  '+C4-a2.1.2.3 依 abi (address,address,uint256) 解讀（--hints）:' '+0xa51bc681d6ca3fee6f309b93d84ddee0a7e846aa  本 Safe（config）' \
+  '+呼叫 #4 的 1024 bytes（在 C4-a2.1，0x00000000…）依 --hints 的讀法顯示' '-無法解碼' '-不認識的地址' '+<h2>警告 <span class="c">1</span></h2>'
+HINTS=$(hints_of vault-v2-cap-submit-flowmark)
+case_ vault-v2-cap-submit-flowmark 1.4.1 0x930ff75c6abf5ea3f1521515052823baa0ebca9034ec0527ddf48fbfae16721e \
+  '+C1.2.1-a1 依 abi (string,address,(address,address,address,address,uint256)) 解讀（--hints）:' '+部分 1:  &quot;this/marketParams&quot;' \
+  '-無法解碼' '-不認識的地址' '+<h2>警告 <span class="c">2</span></h2>'
+HINTS=$(hints_of vault-v2-reallocate-back)
 case_ vault-v2-reallocate-back 1.4.1 0x716904f002c83c8a16d21795776ee58142b1eea5bda59b885625dc176a41517b \
-  '+deallocate(address,bytes,uint256)' '+allocate(address,bytes,uint256)' '-不認識的地址' '+沒有警告'
-case_ crafted-vault-v2-adapter-and-collateral-caps 1.4.1 - '+部分 1:  &quot;this&quot;' '+部分 1:  &quot;collateralToken&quot;' '+沒有警告'
+  '+deallocate(address,bytes,uint256)' '+allocate(address,bytes,uint256)' '+C1.1-a2 依 abi ((address,address,address,address,uint256)) 解讀（--hints）:' \
+  '-無法解碼' '-不認識的地址' '+<h2>警告 <span class="c">2</span></h2>'
+HINTS=$CAP_ID_HINTS
+case_ crafted-vault-v2-adapter-and-collateral-caps 1.4.1 - '+部分 1:  &quot;this&quot;' '+部分 1:  &quot;collateralToken&quot;' '-無法解碼'
+HINTS=''
 
 case_ hostile-multisend-leftover-bytes 1.4.1 - '+MultiSend 尾端剩 32 bytes，不足一筆呼叫'
 case_ hostile-multisend-length-too-long 1.4.1 - '+MultiSend 的長度欄位說 100 bytes，但只剩 68 bytes'
@@ -98,22 +115,37 @@ case_ hostile-multisend-in-bundle 1.4.1 - '+裡有未知函式 selector 0x8d80ff
 case_ hostile-unverified-target 1.4.1 - '+呼叫 #1 的對象 0x1111111111111111111111111111111111111111 沒有在 Sourcify 驗證' '-transfer(address,uint256)'
 case_ hostile-selector-prefix-address 1.4.1 - '-內含的呼叫' '-無法依'
 case_ hostile-short-call-in-multicall 1.4.1 - '+multicall(bytes[])' '+有 32 bytes 的 bytes 引數無法解碼（0x715018a6…）' '-沒有警告'
-case_ hostile-layout-packed-length 1.4.1 - '+的 57 bytes（0xc45125ce…）不符合 known-layouts.txt: packed bytes32 address uint32 佔 56 bytes，不是 57' \
+# Hints that do not fit, or name what is not there: the bytes stay raw with their warning, and a second warning says why.
+HINTS='v1 C1-a1=packed(bytes32,address,uint32)'
+case_ hostile-layout-packed-length 1.4.1 - '+的 57 bytes（在 C1-a1，0xc45125ce…）不符合 --hints: packed bytes32 address uint32 佔 56 bytes，不是 57' \
   '+有 57 bytes 的 bytes 引數無法解碼（0xc45125ce…）' '-部分 1:'
-case_ hostile-layout-unknown-command 1.4.1 - '+指令 0x05 不在表 universal-router' '+指令 0x12 不在表 v4-actions' \
-  '+有 96 bytes 的 bytes 引數無法解碼' '+有 96 bytes 的 bytes 部分無法解碼' '+2/3  指令 0x0b SETTLE，依 abi (address,uint256,bool):'
-case_ hostile-layout-count 1.4.1 - '+2 個指令，但有 1 個元素' '+有 1024 bytes 的 bytes 引數無法解碼' '-1/1  指令'
+HINTS='v1 C1-a1=abi(string,address,(address,address,address,address,uint256))'
 case_ hostile-layout-reencode 1.4.1 - '+重新編碼成 288 bytes，不是這 320 bytes；第一個不同處在 byte offset 288' '+有 320 bytes 的 bytes 引數無法解碼' '-部分 1:'
-case_ hostile-layout-bidi-string 1.4.1 - '+的 128 bytes（0x00000000…）不符合 known-layouts.txt' '+有 128 bytes 的 bytes 引數無法解碼' "-$(printf '\xe2\x80\xae')"
-case_ hostile-layout-uid-selector 1.4.1 - '-內含的呼叫' '+部分 3:  1793413948' '+沒有警告'
-case_ hostile-layout-call-under-unknown-command 1.4.1 - '+指令 0x05 不在表 universal-router' '-內含的呼叫' \
-  '+有 68 bytes 的 bytes 引數無法解碼（0xa9059cbb…）'
+HINTS='v1 C1-a1=abi(string,address)'
+case_ hostile-layout-bidi-string 1.4.1 - '+的 128 bytes（在 C1-a1，0x00000000…）不符合 --hints' '+有 128 bytes 的 bytes 引數無法解碼' "-$(printf '\xe2\x80\xae')"
+HINTS='v1 C1-a1=packed(bytes32,address,uint32)'
+case_ hostile-layout-uid-selector 1.4.1 - '-內含的呼叫' '+部分 3:  1793413948' '+依 --hints 的讀法顯示'
+HINTS='v1 C1-a2.1=abi(address,uint256)'
+case_ hostile-layout-call-under-unknown-command 1.4.1 - '-內含的呼叫' '+有 68 bytes 的 bytes 引數無法解碼（0xa9059cbb…）' '+不符合 --hints'
+HINTS=$(hints_of uniswap-swap-approve-usdt-usdc | sed 's/C4-/C1-/g')
 case_ hostile-layout-settle-reencode 1.4.1 - '+重新編碼成 96 bytes，不是這 128 bytes；第一個不同處在 byte offset 96' '+有 128 bytes 的 bytes 部分無法解碼'
-LAYOUTS=$WORK/deep-layouts.txt
-sed 's/^v4-actions: 0x07 SWAP_EXACT_IN abi .*/v4-actions: 0x07 SWAP_EXACT_IN commands v4-actions/' "$TEST/../known-layouts.txt" > "$LAYOUTS"
-case_ uniswap-swap-approve-usdt-usdc 1.4.1 0xdad1c654fc116f37f62b76f974fd4dc865dbe58387204cbc2355babd99c5de49 '+commands 套超過 2 層' \
-  '+有 480 bytes 的 bytes 部分無法解碼'
-LAYOUTS=$TEST/../known-layouts.txt
+# Hostile hints that fit: a reading of the bytes, never without its warning, and never a row.
+HINTS="v1 C4-a2.1=abi($(printf 'uint256,%.0s' $(seq 31))uint256)"
+case_ uniswap-swap-approve-usdt-usdc 1.4.1 0xdad1c654fc116f37f62b76f974fd4dc865dbe58387204cbc2355babd99c5de49 \
+  '+部分 32:  0' '+依 --hints 的讀法顯示' '-C4-a2.1.2' '+<h2>警告 <span class="c">1</span></h2>'
+HINTS=$(hints_of uniswap-swap-approve-usdt-usdc | sed 's/C4-a2.1.2.3=abi(address,address,uint256)/C4-a2.1.2.3=abi(address,uint256,uint256)/')
+case_ uniswap-swap-approve-usdt-usdc 1.4.1 0xdad1c654fc116f37f62b76f974fd4dc865dbe58387204cbc2355babd99c5de49 \
+  '+部分 2:  942602889720838601399103362193554470438282217130' '+依 --hints 的讀法顯示' '-地址: 0xa51bc681d6ca3fee6f309b93d84ddee0a7e846aa'
+HINTS='v1 C1-a1=packed(bytes32,bytes10,bytes10,uint32)'
+case_ cow-swap-usdc 1.3.0 0x8716f2b4b77fab0162bb87c9f95b49f19ef16a14306677c71dbba39c759c2b66 '+部分 2:  0xb18d844f3578ead22791' '+部分 3:  0xb5c67f7b6af93266804e' '+依 --hints 的讀法顯示'
+HINTS='v1 C4-a3=abi(uint256) C4-a2.2=abi(bytes) C2-a1=abi(address,uint256)'
+case_ uniswap-swap-approve-usdt-usdc 1.4.1 0xdad1c654fc116f37f62b76f974fd4dc865dbe58387204cbc2355babd99c5de49 \
+  '+C4-a3 的 hint 沒有用到：這筆交易在那裡沒有 check.sh 會依 hint 讀的 bytes' '+C4-a2.2 的 hint 沒有用到' '+C2-a1 的 hint 沒有用到' \
+  '+有 1024 bytes 的 bytes 引數無法解碼'
+HINTS='v1 C1-a1.1=abi(bytes) C1.1-a1=abi(bytes4,uint256)'
+case_ vault-v2-cap-submit-flowmark 1.4.1 0x930ff75c6abf5ea3f1521515052823baa0ebca9034ec0527ddf48fbfae16721e \
+  '+C1-a1.1 的 hint 沒有用到' '+C1.1-a1 的 hint 沒有用到' '+increaseAbsoluteCap(bytes,uint256)'
+HINTS=''
 
 # The 比對清單 of real transactions, pinned: kiss-sign's test compares its own block with this same file.
 # Each program's name column is left out, since each names addresses from its own list.
@@ -125,23 +157,23 @@ checklist_() {
   if [ "$status" != PASS ]; then FAILED=$((FAILED + 1)); head -20 "$WORK/diff"; fi
 }
 pinned_() {
-  case_ morpho-deposit-approve-trailer-other-safe 1.4.1 0xda44113d1fa93aa491fd93713d7aaa0ea34ceb28414cbe4ee1d32d796c1342f3
-  checklist_ morpho-deposit-approve-trailer-other-safe
-  case_ eth-transfer-null-data 1.3.0 0xd3ac54144c716e0044b461c068ffd19742c022b265bd51f2d01f7c8ad0399df6
-  checklist_ eth-transfer-null-data
-  case_ merkl-claim-two-tokens 1.3.0 0x1b1774a52d845dce2ea6faac3ab5dd01747adda3af6838dde7f4f4107abdd59a
-  checklist_ merkl-claim-two-tokens
-  case_ cow-swap-usdc 1.3.0 0x8716f2b4b77fab0162bb87c9f95b49f19ef16a14306677c71dbba39c759c2b66
-  checklist_ cow-swap-usdc
-  case_ uniswap-swap-approve-usdt-usdc 1.4.1 0xdad1c654fc116f37f62b76f974fd4dc865dbe58387204cbc2355babd99c5de49
-  checklist_ uniswap-swap-approve-usdt-usdc
-  case_ vault-v2-cap-submit-flowmark 1.4.1 0x930ff75c6abf5ea3f1521515052823baa0ebca9034ec0527ddf48fbfae16721e
-  checklist_ vault-v2-cap-submit-flowmark
-  case_ vault-v2-reallocate-back 1.4.1 0x716904f002c83c8a16d21795776ee58142b1eea5bda59b885625dc176a41517b
-  checklist_ vault-v2-reallocate-back
+  local f v hash
+  for f in morpho-deposit-approve-trailer-other-safe:1.4.1:0xda44113d1fa93aa491fd93713d7aaa0ea34ceb28414cbe4ee1d32d796c1342f3 \
+    eth-transfer-null-data:1.3.0:0xd3ac54144c716e0044b461c068ffd19742c022b265bd51f2d01f7c8ad0399df6 \
+    merkl-claim-two-tokens:1.3.0:0x1b1774a52d845dce2ea6faac3ab5dd01747adda3af6838dde7f4f4107abdd59a \
+    cow-swap-usdc:1.3.0:0x8716f2b4b77fab0162bb87c9f95b49f19ef16a14306677c71dbba39c759c2b66 \
+    uniswap-swap-approve-usdt-usdc:1.4.1:0xdad1c654fc116f37f62b76f974fd4dc865dbe58387204cbc2355babd99c5de49 \
+    vault-v2-cap-submit-flowmark:1.4.1:0x930ff75c6abf5ea3f1521515052823baa0ebca9034ec0527ddf48fbfae16721e \
+    vault-v2-reallocate-back:1.4.1:0x716904f002c83c8a16d21795776ee58142b1eea5bda59b885625dc176a41517b; do
+    IFS=: read -r f v hash <<<"$f"
+    HINTS=$(hints_of "$f")
+    case_ "$f" "$v" "$hash"
+    checklist_ "$f"
+  done
+  HINTS=''
 }
 pinned_
-# The full decode from the first call on, of the cases known-layouts.txt reads, pinned as text.
+# The full decode from the first call on, of the cases hints read, pinned as text.
 decode_() {
   local name=$1 status=PASS
   sed -n '/^<div>── /,/^  <\/div>$/p' "$WORK"/out/*.html | sed '$d' \
@@ -151,36 +183,45 @@ decode_() {
   if [ "$status" != PASS ]; then FAILED=$((FAILED + 1)); head -20 "$WORK/diff"; fi
 }
 decoded_() {
-  case_ vault-v2-cap-submit-flowmark 1.4.1 0x930ff75c6abf5ea3f1521515052823baa0ebca9034ec0527ddf48fbfae16721e
-  decode_ vault-v2-cap-submit-flowmark
-  case_ cow-swap-usdc 1.3.0 0x8716f2b4b77fab0162bb87c9f95b49f19ef16a14306677c71dbba39c759c2b66
-  decode_ cow-swap-usdc
-  case_ uniswap-swap-approve-usdt-usdc 1.4.1 0xdad1c654fc116f37f62b76f974fd4dc865dbe58387204cbc2355babd99c5de49
-  decode_ uniswap-swap-approve-usdt-usdc
-  case_ vault-v2-reallocate-back 1.4.1 0x716904f002c83c8a16d21795776ee58142b1eea5bda59b885625dc176a41517b
-  decode_ vault-v2-reallocate-back
+  local f v
+  for f in vault-v2-cap-submit-flowmark:1.4.1 cow-swap-usdc:1.3.0 uniswap-swap-approve-usdt-usdc:1.4.1 vault-v2-reallocate-back:1.4.1; do
+    IFS=: read -r f v <<<"$f"
+    HINTS=$(hints_of "$f")
+    case_ "$f" "$v" -
+    decode_ "$f"
+  done
+  HINTS=$CAP_ID_HINTS
   case_ crafted-vault-v2-adapter-and-collateral-caps 1.4.1 -
   decode_ crafted-vault-v2-adapter-and-collateral-caps
+  HINTS=''
 }
 decoded_
-# known-layouts.txt never changes a 比對清單: the pinned ones, and those of the layout cases, are the same without it.
+# Hints never change a 比對清單: with kiss-sign's hints, with hostile ones that fit or do not, and with none, it is the same.
 same_checklist_() {
-  local name=$1 version=$2 status=PASS
+  local name=$1 version=$2 hints status=PASS
+  HINTS=''
   case_ "$name" "$version" -
-  sed -n '/^<!-- 比對清單 -->$/,/^<!-- \/比對清單 -->$/p' "$WORK"/out/*.html > "$WORK/with"
-  LAYOUTS=$WORK/empty-layouts.txt
-  case_ "$name" "$version" -
-  LAYOUTS=$TEST/../known-layouts.txt
-  sed -n '/^<!-- 比對清單 -->$/,/^<!-- \/比對清單 -->$/p' "$WORK"/out/*.html | diff -u "$WORK/with" - > "$WORK/diff" || status="FAIL (比對清單 depends on layouts)"
-  printf '%-45s %s\n' "$L $name 比對清單 without layouts" "$status"
+  sed -n '/^<!-- 比對清單 -->$/,/^<!-- \/比對清單 -->$/p' "$WORK"/out/*.html > "$WORK/without"
+  shift 2
+  for hints in "$@"; do
+    HINTS=$hints
+    case_ "$name" "$version" -
+    sed -n '/^<!-- 比對清單 -->$/,/^<!-- \/比對清單 -->$/p' "$WORK"/out/*.html | diff -u "$WORK/without" - > "$WORK/diff" || status="FAIL (比對清單 depends on hints)"
+  done
+  HINTS=''
+  printf '%-45s %s\n' "$L $name 比對清單 with and without hints" "$status"
   if [ "$status" != PASS ]; then FAILED=$((FAILED + 1)); head -20 "$WORK/diff"; fi
 }
-: > "$WORK/empty-layouts.txt"
-for f in cow-swap-usdc uniswap-swap-approve-usdt-usdc vault-v2-cap-submit-flowmark vault-v2-reallocate-back crafted-vault-v2-adapter-and-collateral-caps \
-  hostile-layout-uid-selector hostile-layout-call-under-unknown-command hostile-layout-unknown-command hostile-layout-settle-reencode; do
-  v=1.4.1; [ $f = cow-swap-usdc ] && v=1.3.0
-  same_checklist_ $f $v
+WORDS32="v1 C4-a2.1=abi($(printf 'uint256,%.0s' $(seq 31))uint256)"
+for f in morpho-deposit-approve-trailer-other-safe eth-transfer-null-data merkl-claim-two-tokens vault-v2-cap-submit-flowmark vault-v2-reallocate-back; do
+  v=1.4.1; case $f in eth-transfer-null-data|merkl-claim-two-tokens) v=1.3.0 ;; esac
+  same_checklist_ $f $v 'v1 C1-a1=abi(bytes) C1.1-a1=packed(address)'
 done
+same_checklist_ vault-v2-cap-submit-flowmark 1.4.1 "$(hints_of vault-v2-cap-submit-flowmark)" 'v1 C1.1.1-a1=abi(uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256)'
+same_checklist_ vault-v2-reallocate-back 1.4.1 "$(hints_of vault-v2-reallocate-back)" 'v1 C1.1-a2=abi(bytes32,bytes32,bytes32,bytes32,bytes32)'
+same_checklist_ cow-swap-usdc 1.3.0 "$(hints_of cow-swap-usdc)" 'v1 C1-a1=packed(bytes32,bytes10,bytes10,uint32)' 'v1 C1-a1=packed(address)'
+same_checklist_ uniswap-swap-approve-usdt-usdc 1.4.1 "$(hints_of uniswap-swap-approve-usdt-usdc)" "$WORDS32" 'v1 C4-a2.1=abi(address)'
+same_checklist_ crafted-vault-v2-adapter-and-collateral-caps 1.4.1 "$CAP_ID_HINTS"
 hostile_page_() {
   local name=$1 page status=PASS
   printf '0x9999999999999999999999999999999999999999 %s\n' $'<script>alert(1)</script> "><img src=x onerror=alert(1)> \xe2\x80\xaeevil\xe2\x80\x8f\x01' > "$WORK/known-hostile.txt"
@@ -233,11 +274,17 @@ case_ hostile-dirty-uint8 1.4.1 - '+data is not standard ABI encoding'
 case_ hostile-big-value 1.4.1 - "+Error: cannot encode this transaction's fields"
 case_ hostile-multisend-plain-call 1.4.1 - "+multiSend is not the Safe's own DELEGATECALL to an official MultiSend" '+calls the Safe makes: 1' '-Call #2'
 case_ hostile-short-call-in-multicall 1.4.1 - '+has a bytes argument of 32 bytes that cannot be decoded (0x715018a6…)' '-No warnings'
-case_ hostile-layout-packed-length 1.4.1 - "+call #1&apos;s 57 bytes (0xc45125ce…) do not fit known-layouts.txt: packed bytes32 address uint32 takes 56 bytes, not 57"
-case_ hostile-layout-unknown-command 1.4.1 - '+command 0x05 is not in the table universal-router' '+command 0x12 is not in the table v4-actions' \
-  '+has a bytes part of 96 bytes that cannot be decoded'
-case_ hostile-layout-count 1.4.1 - '+2 commands but 1 elements'
+HINTS='v1 C1-a1=packed(bytes32,address,uint32)'
+case_ hostile-layout-packed-length 1.4.1 - "+call #1&apos;s 57 bytes at C1-a1 (0xc45125ce…) do not fit --hints: packed bytes32 address uint32 takes 56 bytes, not 57"
+HINTS='v1 C1-a1=abi(string,address,(address,address,address,address,uint256))'
 case_ hostile-layout-reencode 1.4.1 - '+the parts encode back to 288 bytes, not these 320 bytes; they first differ at byte offset 288'
+HINTS=$(hints_of uniswap-swap-approve-usdt-usdc)
+case_ uniswap-swap-approve-usdt-usdc 1.4.1 0xdad1c654fc116f37f62b76f974fd4dc865dbe58387204cbc2355babd99c5de49 \
+  "+call #4&apos;s 1024 bytes at C4-a2.1 (0x00000000…) are shown as --hints reads them" '+C4-a2.1 as abi (bytes,bytes[]) (--hints):' "+hints:          $HINTS"
+HINTS='v1 C4-a3=abi(uint256)'
+case_ uniswap-swap-approve-usdt-usdc 1.4.1 0xdad1c654fc116f37f62b76f974fd4dc865dbe58387204cbc2355babd99c5de49 \
+  '+the hint for C4-a3 was not used: this transaction holds no bytes there that check.sh reads by a hint'
+HINTS=''
 pinned_
 hostile_page_ hostile-html-inject
 decoded_
@@ -266,43 +313,57 @@ language_ $'LANGUAGE=zh-tw\n' refused
 language_ $'LANGUAGE=en\r\n' refused
 language_ $'LANGUAGE=zh-TW\nLANGUAGE=zh-TW\n' refused
 
-# A layout list check.sh must refuse before anything runs, with the start of the error it must give.
-layouts_() {
+# Hints check.sh must refuse before anything runs, with the start of the error it must give.
+hints_() {
   local label=$1 want=$3 out status=PASS
-  printf '%s' "$2" > "$WORK/layouts.txt"
   printf 'SAFE=%s\nSAFE_VERSION=1.3.0\nLANGUAGE=en\n' "$(jq -r .safe "$TEST/fixtures/eth-transfer-null-data.json")" > "$WORK/config"
   rm -rf "$WORK/out"
-  out=$(CHECK_CONFIG="$WORK/config" CHECK_KNOWN="$TEST/known-addresses.txt" CHECK_LAYOUTS="$WORK/layouts.txt" CHECK_OUT="$WORK/out" \
-    /bin/bash "$TEST/../check.sh" --file "$TEST/fixtures/eth-transfer-null-data.json" 2>&1) || true
+  out=$(CHECK_CONFIG="$WORK/config" CHECK_KNOWN="$TEST/known-addresses.txt" CHECK_OUT="$WORK/out" \
+    /bin/bash "$TEST/../check.sh" --file "$TEST/fixtures/eth-transfer-null-data.json" "${@:4}" --hints "$2" 2>&1) || true
   grep -qF -- "$want" <<<"$out" && ! [ -d "$WORK/out" ] || status="FAIL (not refused before anything ran)"
-  printf '%-45s %s\n' "layouts: $label" "$status"
+  printf '%-45s %s\n' "hints: $label" "$status"
   if [ "$status" != PASS ]; then FAILED=$((FAILED + 1)); echo "$out" | tail -5; fi
 }
-layouts_ 'not a function signature' $'swap 1 abi (address)\n' 'known-layouts.txt line 1 is malformed'
-layouts_ 'bidi character in a comment' $'# fine \xe2\x80\xae\nsetPreSignature(bytes,bool) 1 packed bytes32 address uint32\n' 'line 1 holds a character that is not printable ASCII'
-layouts_ 'control character' $'setPreSignature(bytes,bool) 1 packed bytes32\x01 address uint32\n' 'line 1 holds a character that is not printable ASCII'
-layouts_ 'line ending in CR' $'# ok\nsetPreSignature(bytes,bool) 1 packed bytes32 address uint32\r\n' 'line 2 holds a character that is not printable ASCII'
-layouts_ 'unknown kind' $'setPreSignature(bytes,bool) 1 rlp bytes32\n' 'known-layouts.txt line 1 is malformed'
-layouts_ 'packed type not fixed-size' $'setPreSignature(bytes,bool) 1 packed bytes32 address uint7\n' 'known-layouts.txt line 1 is malformed'
-layouts_ 'abi type unknown' $'setPreSignature(bytes,bool) 1 abi (address,uint257)\n' 'known-layouts.txt line 1 is malformed'
-layouts_ 'abi bytes longer than 32' $'setPreSignature(bytes,bool) 1 abi (bytes40)\n' 'known-layouts.txt line 1 is malformed'
-layouts_ 'argument not bytes' $'setPreSignature(bytes,bool) 2 abi (bool)\n' 'known-layouts.txt line 1 is malformed'
-layouts_ 'commands on a non-array' $'execute(bytes,bytes[],uint256) 1,3 commands t\nt: 0x00 A abi (bool)\n' 'known-layouts.txt line 1 is malformed'
-layouts_ 'bytes check.sh decodes as calls' $'submit(bytes) 1 abi (address)\n' 'whose bytes check.sh already decodes as calls'
-layouts_ 'table row twice' $'execute(bytes,bytes[],uint256) 1,2 commands t\nt: 0x00 A abi (bool)\nt: 0x00 B abi (address)\n' 'known-layouts.txt gives t 0x00 twice'
-layouts_ 'commands and abi on one argument' $'execute(bytes,bytes[],uint256) 1,2 commands t\nexecute(bytes,bytes[],uint256) 1 abi (bool)\nt: 0x00 A abi (bool)\n' \
-  'known-layouts.txt gives execute(bytes,bytes[],uint256)#1 twice'
-layouts_ 'chained tuples' $'setPreSignature(bytes,bool) 1 abi (address)(uint256)\n' 'known-layouts.txt line 1 is malformed'
-layouts_ 'empty tuple' $'setPreSignature(bytes,bool) 1 abi (())\n' 'known-layouts.txt line 1 is malformed'
-layouts_ 'unbalanced tuple' $'setPreSignature(bytes,bool) 1 abi ((address)\n' 'known-layouts.txt line 1 is malformed'
-layouts_ 'whitespace-only line' $'   \n' 'known-layouts.txt line 1 is malformed'
-layouts_ 'table with no rows' $'execute(bytes,bytes[],uint256) 1,2 commands nothing\n' 'known-layouts.txt names the table nothing, which has no rows'
+MALFORMED='--hints is malformed'
+hints_ 'empty' '' "$MALFORMED"
+hints_ 'no entry' 'v1' "$MALFORMED"
+hints_ 'another version' 'v2 C1-a1=abi(address)' "$MALFORMED"
+hints_ 'two spaces' 'v1  C1-a1=abi(address)' "$MALFORMED"
+hints_ 'a URL' 'v1 C1-a1=abi(address) https://example.com/x' "$MALFORMED"
+hints_ 'a file path' 'v1 /etc/passwd' "$MALFORMED"
+hints_ 'a command' 'v1 C1-a1=abi(address);rm' "$MALFORMED"
+hints_ 'a quote' "v1 C1-a1=abi(address)'" "$MALFORMED"
+hints_ 'a bidi character' $'v1 C1-a1=abi(addreâ®ss)' "$MALFORMED"
+hints_ 'a newline' $'v1 C1-a1=abi(address)
+v1' "$MALFORMED"
+hints_ 'a name in the types' 'v1 C1-a1=abi(address to)' "$MALFORMED"
+hints_ 'a path from 0' 'v1 C1-a0=abi(address)' "$MALFORMED"
+hints_ 'a path with no argument' 'v1 C1=abi(address)' "$MALFORMED"
+hints_ 'an unknown kind' 'v1 C1-a1=rlp(address)' "$MALFORMED"
+hints_ 'an unknown type' 'v1 C1-a1=abi(address,uint257)' "$MALFORMED"
+hints_ 'bytes longer than 32' 'v1 C1-a1=abi(bytes40)' "$MALFORMED"
+hints_ 'packed not fixed-size' 'v1 C1-a1=packed(bytes32,bytes)' "$MALFORMED"
+hints_ 'packed with an empty part' 'v1 C1-a1=packed(bytes32,,uint32)' "$MALFORMED"
+hints_ 'chained tuples' 'v1 C1-a1=abi(address)(uint256)' "$MALFORMED"
+hints_ 'empty tuple' 'v1 C1-a1=abi(())' "$MALFORMED"
+hints_ 'unbalanced tuple' 'v1 C1-a1=abi((address)' "$MALFORMED"
+hints_ 'an empty type' 'v1 C1-a1=abi(uint256,,address)' "$MALFORMED"
+hints_ 'an empty tuple slot' 'v1 C1-a1=abi(,)' "$MALFORMED"
+hints_ 'an array with no type' 'v1 C1-a1=abi([2]uint256)' "$MALFORMED"
+hints_ 'tuples side by side' 'v1 C1-a1=abi((address)(address))' "$MALFORMED"
+hints_ 'a stray bracket' 'v1 C1-a1=abi(uint256])' "$MALFORMED"
+hints_ 'packed ending in a comma' 'v1 C1-a1=packed(bytes32,address,uint32,)' "$MALFORMED"
+hints_ 'one path twice' 'v1 C1-a1=abi(address) C1-a1=packed(address)' '--hints gives C1-a1 twice'
+hints_ 'given twice' 'v1 C1-a1=abi(address)' 'usage:' --hints 'v1 C1-a2=abi(address)'
 
+# A run refused for its hints leaves no page from an earlier run of the same nonce.
 rm -rf "$WORK/out"
-out=$(CHECK_CONFIG="$WORK/config" CHECK_KNOWN="$TEST/known-addresses.txt" CHECK_LAYOUTS="$WORK/no-such-layouts.txt" CHECK_OUT="$WORK/out" \
-  /bin/bash "$TEST/../check.sh" --file "$TEST/fixtures/eth-transfer-null-data.json" 2>&1) || true
-if grep -qF "$WORK/no-such-layouts.txt not found" <<<"$out" && ! [ -d "$WORK/out" ]; then printf '%-45s PASS\n' 'layouts: missing file'
-else printf '%-45s FAIL\n' 'layouts: missing file'; FAILED=$((FAILED + 1)); fi
+CHECK_CONFIG="$WORK/config" CHECK_KNOWN="$TEST/known-addresses.txt" CHECK_OUT="$WORK/out" \
+  /bin/bash "$TEST/../check.sh" --file "$TEST/fixtures/eth-transfer-null-data.json" > /dev/null 2>&1 || true
+CHECK_CONFIG="$WORK/config" CHECK_KNOWN="$TEST/known-addresses.txt" CHECK_OUT="$WORK/out" \
+  /bin/bash "$TEST/../check.sh" --file "$TEST/fixtures/eth-transfer-null-data.json" --hints 'v1 C1-a1=packed(foo)' > /dev/null 2>&1 || true
+if [ -z "$(ls "$WORK/out")" ]; then printf '%-45s PASS\n' 'hints: refused run leaves no old page'
+else printf '%-45s FAIL\n' 'hints: refused run leaves no old page'; FAILED=$((FAILED + 1)); fi
 
 # Answers derived from the recorded ones: an ABI with a function in a type that is not canonical, which is left out, and
 # a proxy whose implementation Sourcify has not verified.
