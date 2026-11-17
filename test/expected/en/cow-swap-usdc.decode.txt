@@ -1,0 +1,13 @@
+── Call #1
+   to:        0x9008D19f58AAbD9eD0D60971565AA8510560ab41  CoW GPv2Settlement
+   value:     0 wei (0.000000000000000000 ETH)
+   operation: 0 CALL
+   function:  setPreSignature(bytes,bool)   (cast sig = 0xec6cb13f)
+     argument 1:  0xc45125ce75112738d7cde40eef1321f070e792066f9211fd0c4eb1616c309b64b18d844f3578ead22791b5c67f7b6af93266804e6ae5533c
+     argument 2:  true
+     argument 1 as packed bytes32 address uint32 (known-layouts.txt):
+       part 1:  0xc45125ce75112738d7cde40eef1321f070e792066f9211fd0c4eb1616c309b64
+       part 2:  0xb18D844f3578EaD22791B5c67F7B6aF93266804E
+       part 3:  1793413948
+       address: 0xb18d844f3578ead22791b5c67f7b6af93266804e  this Safe (config)
+
