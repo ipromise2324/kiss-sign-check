@@ -632,13 +632,13 @@ show_data() {
         fi
       done ;;
     *)
-      b=$(cast decode-calldata --json "$(as_words "$sig")" "$data") || die "$E_CAST"
+      b=$(cast decode-calldata --json "$(fixed_as_uint "$sig")" "$data") || die "$E_CAST"
       read_bytes "$ind  " "$id-a" "$b" "" "${here[@]}" < /dev/null ;;
   esac
 }
 
-# The types $1 with every address and bytes1 to bytes32 read as uint256, so only dynamic bytes decode to hex.
-as_words() { sed -E 's/([(,])(address|bytes[0-9]+)/\1uint256/g' <<<"$1"; }
+# The types $1 with every address and bytes1 to bytes32 read as uint256.
+fixed_as_uint() { sed -E 's/([(,])(address|bytes[0-9]+)/\1uint256/g' <<<"$1"; }
 addresses_in() { jq -r '[.data | .. | strings | select(test("^0x[0-9a-fA-F]{40}$")) | ascii_downcase] | unique | .[]' <<<"$1"; }
 size() { echo $(( (${#1} - 2) / 2 )); }
 
@@ -652,7 +652,7 @@ differ() {
 
 # Reads the bytes $1 with a layout (abi <types> or packed <type>...). PARTS gets one line per part and PJSON, as cast's
 # JSON, the parts to look inside: all of an abi layout, only the addresses of a packed one, whose parts are all fixed-size.
-# BJSON holds the parts again with only the dynamic bytes as hex.
+# BJSON holds an abi layout's parts again as fixed_as_uint decodes them; a packed layout has none.
 # It fails, setting WHY, unless the parts encode back to exactly these bytes.
 read_layout() {
   local hex=$1 kind=$2 line t w need=0 at=2 back pad
@@ -661,7 +661,7 @@ read_layout() {
   case $kind in
     abi)
       if ! PJSON=$(cast abi-decode --json "f()$1" "$hex" 2>/dev/null); then WHY=$(printf "$R_DECODE" "abi $1"); return 1; fi
-      BJSON=$(cast abi-decode --json "f()$(as_words "$1")" "$hex") || die "$E_CAST"
+      BJSON=$(cast abi-decode --json "f()$(fixed_as_uint "$1")" "$hex") || die "$E_CAST"
       while IFS= read -r line; do PARTS+=("$(printf '%s' "$line" | sed -E "$HINT")"); done < <(cast abi-decode "f()$1" "$hex")
       back=$(cast abi-encode "f$1" "${PARTS[@]}" 2>/dev/null) || back="" ;;
     packed)
@@ -699,10 +699,10 @@ show_parts() {
 }
 
 # Warns that the bytes $3 are not decoded; $2 is set for a part of bytes a hint read, and $4 to $6 name the call and
-# its verified source. A value of 20 bytes, or of 32 whose first 12 are zero, is also shown as the address it may be.
+# its verified source.
 undecoded() {
-  local ind=$1 noun=$B_ARG any=$W_BYTES b=$3 a
-  if [ -n "$2" ]; then noun=$B_PART any=$W_PART_BYTES; fi
+  local ind=$1 inside=$2 b=$3 noun=$B_ARG any=$W_BYTES a
+  if [ -n "$inside" ]; then noun=$B_PART any=$W_PART_BYTES; fi
   shift 3
   case $(size "$b") in
     20) a=$(cast to-check-sum-address "$b"); warn "$ind" "$W_BYTES_ADDR$W_CHECK" "$CALLS" "$noun" "$b" "$a" "$(named "$a")" "$@" ;;
@@ -716,8 +716,8 @@ undecoded() {
 }
 named() { local n; n=$(name_of "$1"); echo "${n:-$N_UNKNOWN}"; }
 
-# Reads each dynamic bytes value in the JSON $3, as as_words decodes it. $4 is set inside bytes a hint read, whose
-# warning already covers them; $5 to $7 name the call and its verified source.
+# Reads each dynamic bytes value in the JSON $3, as fixed_as_uint decodes it. $4 is set inside bytes a hint read, and
+# $5 to $7 name the call and its verified source.
 read_bytes() {
   local ind=$1 prefix=$2 json=$3 inside=$4 at value layout parts
   shift 4
@@ -957,7 +957,7 @@ main() {
   set -- ${args[@]+"${args[@]}"}
   if [ $# -eq 2 ] && [ "$1" = --file ]; then
     txs=$(jq -c 'if has("results") then .results else [.] end' "$2")
-    [ "$(jq '[.[].nonce | tostring] | unique | length' <<<"$txs")" -le 1 ] || die "$E_FILE_NONCES"
+    [ "$(jq '[.[] | .nonce? | tostring] | unique | length' <<<"$txs")" -le 1 ] || die "$E_FILE_NONCES"
   elif [ $# -eq 1 ] && is_uint "$1"; then
     url="https://api.safe.global/tx-service/eth/api/v2/safes/$(cast to-check-sum-address "$SAFE")/multisig-transactions/?nonce=$1"
     response=$(curl -fsS --max-time 30 "$url") || die "$E_FETCH"

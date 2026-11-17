@@ -115,7 +115,6 @@ case_ hostile-multisend-in-bundle 1.4.1 - '+裡有未知函式 selector 0x8d80ff
 case_ hostile-unverified-target 1.4.1 - '+呼叫 #1 的對象 0x1111111111111111111111111111111111111111 沒有在 Sourcify 驗證' '-transfer(address,uint256)'
 case_ hostile-selector-prefix-address 1.4.1 - '-內含的呼叫' '-無法依'
 case_ hostile-short-call-in-multicall 1.4.1 - '+multicall(bytes[])' '+有 32 bytes 的 bytes 引數沒有解碼（0x715018a6' '-沒有警告'
-# Bytes of 20 or 32 that no ABI or hint decodes: shown as the address they may hold, with where to read how the contract reads them.
 case_ hostile-bytes-20-address 1.4.1 - \
   '+有 20 bytes 的 bytes 引數沒有解碼（0x5555555555555555555555555555555555555555），它可能是地址 0x5555555555555555555555555555555555555555（!! 不認識）' \
   '+它們在對 permit(address,address,uint256,uint256,bytes) 的呼叫裡（合約 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48）' \
