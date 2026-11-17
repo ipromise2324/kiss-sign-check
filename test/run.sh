@@ -10,13 +10,10 @@ FAILED=0
 # Sourcify's answers, recorded by test/record-sourcify.sh, so no test reads the network.
 export CHECK_SOURCIFY_DIR=$TEST/sourcify
 
-# Each case runs in the language L names; HASH is the start of the summary's safeTxHash line in it. HINTS, when set, is
-# the --hints a case runs with.
+# Each case runs in the language L names; HASH is the start of the summary's safeTxHash line in it.
 L=zh-TW HASH='safeTxHash（和錢包顯示的比對）: ' HINTS=''
-# The --hints kiss-sign prints for a pinned fixture, which its tests pin in a copy of test/expected/hints/.
 hints_of() { cat "$TEST/expected/hints/$1.txt"; }
-# The two Vault V2 cap ids no recorded transaction holds, as kiss-sign's cap templates would give them.
-CRAFTED_HINTS='v1 C1.1.1-a1=abi(string,address) C1.2.1-a1=abi(string,address)'
+CAP_ID_HINTS='v1 C1.1.1-a1=abi(string,address) C1.2.1-a1=abi(string,address)'
 
 # case <fixture> <Safe version> <recorded safeTxHash, or - for a crafted case> [+text that must appear | -text that must not]...
 case_() {
@@ -93,7 +90,7 @@ HINTS=$(hints_of vault-v2-reallocate-back)
 case_ vault-v2-reallocate-back 1.4.1 0x716904f002c83c8a16d21795776ee58142b1eea5bda59b885625dc176a41517b \
   '+deallocate(address,bytes,uint256)' '+allocate(address,bytes,uint256)' '+C1.1-a2 依 abi ((address,address,address,address,uint256)) 解讀（--hints）:' \
   '-無法解碼' '-不認識的地址' '+<h2>警告 <span class="c">2</span></h2>'
-HINTS=$CRAFTED_HINTS
+HINTS=$CAP_ID_HINTS
 case_ crafted-vault-v2-adapter-and-collateral-caps 1.4.1 - '+部分 1:  &quot;this&quot;' '+部分 1:  &quot;collateralToken&quot;' '-無法解碼'
 HINTS=''
 
@@ -193,7 +190,7 @@ decoded_() {
     case_ "$f" "$v" -
     decode_ "$f"
   done
-  HINTS=$CRAFTED_HINTS
+  HINTS=$CAP_ID_HINTS
   case_ crafted-vault-v2-adapter-and-collateral-caps 1.4.1 -
   decode_ crafted-vault-v2-adapter-and-collateral-caps
   HINTS=''
@@ -224,7 +221,7 @@ same_checklist_ vault-v2-cap-submit-flowmark 1.4.1 "$(hints_of vault-v2-cap-subm
 same_checklist_ vault-v2-reallocate-back 1.4.1 "$(hints_of vault-v2-reallocate-back)" 'v1 C1.1-a2=abi(bytes32,bytes32,bytes32,bytes32,bytes32)'
 same_checklist_ cow-swap-usdc 1.3.0 "$(hints_of cow-swap-usdc)" 'v1 C1-a1=packed(bytes32,bytes10,bytes10,uint32)' 'v1 C1-a1=packed(address)'
 same_checklist_ uniswap-swap-approve-usdt-usdc 1.4.1 "$(hints_of uniswap-swap-approve-usdt-usdc)" "$WORDS32" 'v1 C4-a2.1=abi(address)'
-same_checklist_ crafted-vault-v2-adapter-and-collateral-caps 1.4.1 "$CRAFTED_HINTS"
+same_checklist_ crafted-vault-v2-adapter-and-collateral-caps 1.4.1 "$CAP_ID_HINTS"
 hostile_page_() {
   local name=$1 page status=PASS
   printf '0x9999999999999999999999999999999999999999 %s\n' $'<script>alert(1)</script> "><img src=x onerror=alert(1)> \xe2\x80\xaeevil\xe2\x80\x8f\x01' > "$WORK/known-hostile.txt"
@@ -350,8 +347,23 @@ hints_ 'packed with an empty part' 'v1 C1-a1=packed(bytes32,,uint32)' "$MALFORME
 hints_ 'chained tuples' 'v1 C1-a1=abi(address)(uint256)' "$MALFORMED"
 hints_ 'empty tuple' 'v1 C1-a1=abi(())' "$MALFORMED"
 hints_ 'unbalanced tuple' 'v1 C1-a1=abi((address)' "$MALFORMED"
+hints_ 'an empty type' 'v1 C1-a1=abi(uint256,,address)' "$MALFORMED"
+hints_ 'an empty tuple slot' 'v1 C1-a1=abi(,)' "$MALFORMED"
+hints_ 'an array with no type' 'v1 C1-a1=abi([2]uint256)' "$MALFORMED"
+hints_ 'tuples side by side' 'v1 C1-a1=abi((address)(address))' "$MALFORMED"
+hints_ 'a stray bracket' 'v1 C1-a1=abi(uint256])' "$MALFORMED"
+hints_ 'packed ending in a comma' 'v1 C1-a1=packed(bytes32,address,uint32,)' "$MALFORMED"
 hints_ 'one path twice' 'v1 C1-a1=abi(address) C1-a1=packed(address)' '--hints gives C1-a1 twice'
 hints_ 'given twice' 'v1 C1-a1=abi(address)' 'usage:' --hints 'v1 C1-a2=abi(address)'
+
+# A run refused for its hints leaves no page from an earlier run of the same nonce.
+rm -rf "$WORK/out"
+CHECK_CONFIG="$WORK/config" CHECK_KNOWN="$TEST/known-addresses.txt" CHECK_OUT="$WORK/out" \
+  /bin/bash "$TEST/../check.sh" --file "$TEST/fixtures/eth-transfer-null-data.json" > /dev/null 2>&1 || true
+CHECK_CONFIG="$WORK/config" CHECK_KNOWN="$TEST/known-addresses.txt" CHECK_OUT="$WORK/out" \
+  /bin/bash "$TEST/../check.sh" --file "$TEST/fixtures/eth-transfer-null-data.json" --hints 'v1 C1-a1=packed(foo)' > /dev/null 2>&1 || true
+if [ -z "$(ls "$WORK/out")" ]; then printf '%-45s PASS\n' 'hints: refused run leaves no old page'
+else printf '%-45s FAIL\n' 'hints: refused run leaves no old page'; FAILED=$((FAILED + 1)); fi
 
 # Answers derived from the recorded ones: an ABI with a function in a type that is not canonical, which is left out, and
 # a proxy whose implementation Sourcify has not verified.

@@ -342,7 +342,6 @@ fixed_size() {
     int*) fixed_size "u$1" ;;
   esac
 }
-# kind and spec of one layout: abi (<types>), or packed <type>...
 layout_ok() {
   local kind=$1 t types='^[(][][a-z0-9,()]+[)]$'
   shift
@@ -355,7 +354,9 @@ layout_ok() {
         if .ok and .d == 0 and .n then .ok = false else . end
         | .d += (if $c == 40 then 1 elif $c == 41 then -1 else 0 end) | .n = true
         | if .d < 0 then .ok = false else . end) | .ok and .d == 0' > /dev/null || return 1
-      for t in $(printf '%s' "$1" | sed -E 's/\[[0-9]*\]//g' | tr '(),' '   '); do
+      t=$(printf '%s' "$1" | sed -E 's/\[[0-9]*\]//g')
+      [[ $t != *[][]* ]] || return 1
+      for t in $(tr '(),' '   ' <<<"$t"); do
         case $t in
           string|bytes) ;;
           *) [ -n "$(fixed_size "$t")" ] || return 1 ;;
@@ -373,12 +374,14 @@ layout_ok() {
 HINTS="" HINTS_TEXT=""
 parse_hints() {
   local entries entry path kind types parts shape='^v1( [^ ]+)+$' chars='^[][A-Za-z0-9 ().,=-]+$'
-  local one='^(C[1-9][0-9]*([.][1-9][0-9]*)*-a[1-9][0-9]*([.][1-9][0-9]*)*)=(abi|packed)([(].*[)])$'
+  local gap='[(,][],)[]|[]a-z0-9)][(]|[)][]a-z0-9]'
+  local hint_entry='^(C[1-9][0-9]*([.][1-9][0-9]*)*-a[1-9][0-9]*([.][1-9][0-9]*)*)=(abi|packed)([(].*[)])$'
   [[ $1 =~ $shape ]] && [[ $1 =~ $chars ]] || die "$E_HINTS" "$1"
   read -r -a entries <<<"${1#v1 }"
   for entry in "${entries[@]}"; do
-    [[ $entry =~ $one ]] || die "$E_HINTS" "$entry"
+    [[ $entry =~ $hint_entry ]] || die "$E_HINTS" "$entry"
     path=${BASH_REMATCH[1]} kind=${BASH_REMATCH[4]} types=${BASH_REMATCH[5]}
+    if [[ $types =~ $gap ]]; then die "$E_HINTS" "$entry"; fi
     if [ "$kind" = packed ]; then
       types=${types#(}
       IFS=, read -r -a parts <<<"${types%)}"
@@ -607,7 +610,6 @@ show_data() {
   esac
 }
 
-# Every address in cast's JSON $1.
 addresses_in() { jq -r '[.data | .. | strings | select(test("^0x[0-9a-fA-F]{40}$")) | ascii_downcase] | unique | .[]' <<<"$1"; }
 size() { echo $(( (${#1} - 2) / 2 )); }
 
@@ -658,7 +660,6 @@ read_layout() {
   return 1
 }
 
-# Prints PARTS and names the addresses in them.
 show_parts() {
   local ind=$1 i=0 b
   while [ $i -lt ${#PARTS[@]} ]; do echo "$ind$(printf "$T_PART" $((i + 1)) "${PARTS[$i]}")"; i=$((i + 1)); done
@@ -666,8 +667,8 @@ show_parts() {
   for b in $b; do show_addr "$ind" "$T_ADDR" "$b"; done
 }
 
-# Each bytes value of at least 4 bytes, other than 20 or 32, in cast's JSON $3, the bytes at $2<n>[.<n>...]: read with
-# its hint, or warned about as bytes that cannot be decoded. $4 is set inside bytes a hint read, whose warning covers it.
+# A value of 20 or 32 bytes reads like an address or a bytes32 and is shown as is. $4 is set inside bytes a hint read,
+# whose warning already covers them.
 read_bytes() {
   local ind=$1 prefix=$2 json=$3 inside=${4:-} at value layout parts
   while IFS=$'\t' read -r at value; do
@@ -900,9 +901,9 @@ page() {
 }
 
 main() {
-  local txs count i=0 url response args=()
+  local txs count i=0 url response args=() hints="" given=""
   while [ $# -gt 0 ]; do
-    if [ "$1" = --hints ] && [ $# -ge 2 ] && [ -z "$HINTS_TEXT" ]; then parse_hints "$2"; shift 2
+    if [ "$1" = --hints ] && [ $# -ge 2 ] && [ -z "$given" ]; then hints=$2 given=yes; shift 2
     else args+=("$1"); shift
     fi
   done
@@ -922,6 +923,7 @@ main() {
   [ "$count" -gt 0 ] || die "$E_NO_TX"
   is_uint "$(jq -r '.[0].nonce' <<<"$txs")" || die "$E_NOT_UINT" nonce
   rm -f "$OUT/nonce-$(jq -r '.[0].nonce' <<<"$txs").html"  # a page from an earlier run must not outlive a run that stops
+  if [ -n "$given" ]; then parse_hints "$hints"; fi
   WORK=$(mktemp -d)
   trap 'rm -rf "$WORK"' EXIT
   mkdir "$WORK/abi"
