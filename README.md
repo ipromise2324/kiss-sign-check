@@ -64,7 +64,7 @@ For a transaction whose template reads `bytes` that no ABI describes, the comman
 
 It fetches the transactions at that nonce from `api.safe.global`, and the ABI of each contract a call goes to from `sourcify.dev`, both mainnet only and with no API key. Those are its only network requests. `./check.sh --file <tx.json>` reads the transactions from a file instead, and refuses a file whose transactions do not all share one nonce; it still asks Sourcify for the ABIs. Sourcify thus learns which contracts your pending transaction calls. If Sourcify does not answer, or answers with anything but the contract's ABI or "not verified", `check.sh` stops and writes no page; run it again later. The terminal prints a summary (here run with `CHECK_OUT=out`, so the page path is short):
 
-![The terminal after ./check.sh 1566: the safeTxHash, 3 calls from the Safe, a note that USDC is a proxy whose calls are decoded with the ABI of the implementation Sourcify reports, a note that call #3 has 8 bytes after its arguments, no warnings, and the path of the page](docs/readme/terminal.png)
+![The terminal after ./check.sh 1566: the safeTxHash, 3 calls from the Safe, a note that USDC is a proxy whose calls are decoded with the ABI of the implementation Sourcify reports, a warning that call #3 has 8 bytes after its arguments, which no argument holds but a contract can still read, and the path of the page](docs/readme/terminal.png)
 
 This is a real run, on another Safe's Morpho vault deposit: an `approve` and a Bundler3 `multicall`, batched through MultiSend. Open the page and check four things:
 
