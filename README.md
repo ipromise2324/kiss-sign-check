@@ -65,7 +65,7 @@ It fetches the transactions at that nonce from `api.safe.global`, mainnet only a
 This is a real run, on another Safe's Morpho vault deposit: an `approve` and a Bundler3 `multicall`, batched through MultiSend. Open the page and check four things:
 
 1. **The hashes.** Compare them with your hardware wallet's screen, character by character: the domain hash and message hash, or the safeTxHash if that is what your wallet shows. If they differ, do not sign.
-2. **The 比對清單 (comparison list).** Compare it with the one on kiss-sign `verify`'s page, row by row, as in the picture above. Every row must be equal, except the name column on the right, where each side names addresses from its own list. If any other row differs, stop.
+2. **The 比對清單 (comparison list).** Compare it with the one on kiss-sign `verify`'s page (headed Checklist when that page is in English), row by row, as in the picture above. Every row must be equal, except the name column on the right, where each side names addresses from its own list. If any other row differs, stop.
 3. **The warnings.** Read every `!! 警告`. A warning means look closer, not necessarily stop. A note, such as the 8 bytes above, is a fact of the decode that `check.sh` does not judge.
 4. **The calls themselves.** Read every call's `to`, amount and recipient against what you meant to do. Equal rows prove only that both computers decoded the same bytes the same way: a work computer that proposed the wrong transaction can still show its true decode.
 
@@ -91,7 +91,7 @@ Each kiss-sign template's calls decode, so their rows match `verify`'s. Some byt
 - **Every address is named, or flagged.** Names come only from your `known-addresses.txt`, the built-in MultiSend list, the Safe in your `config` and the zero address.
 - **Warnings for what usually means trouble:**
   - non-zero `safeTxGas`, `baseGas`, `gasPrice`, `gasToken` or `refundReceiver`;
-  - a DELEGATECALL other than the Safe's own call into an official MultiSend, or a plain CALL into a MultiSend;
+  - a DELEGATECALL other than the Safe's own call into an official MultiSend, or a plain CALL into an official MultiSend;
   - a zero `to` inside a MultiSend;
   - an unknown function or address, or a `bytes` argument it cannot decode;
   - ETH sent along with a call that has data, from the Safe or a MultiSend (a Bundler3 call's value is shown, not warned on);
@@ -104,7 +104,7 @@ Each kiss-sign template's calls decode, so their rows match `verify`'s. Some byt
 
 - **It does not judge.** It does not know whether a contract is the protocol's real one, or whether the transaction is what you meant. kiss-sign does that, against your card. `check.sh` only shows what the transaction is, so read its calls against what you meant to do.
 - **It does not read the chain or simulate.** It sees the transaction, not its effects.
-- **Bytes that are not a known call stay opaque.** A CCTP message, a Uniswap router's inputs and a CoW order's UID are shown raw with a warning. Addresses packed inside such bytes are not named. A value of exactly 20 or 32 bytes, or under 4 bytes, is never decoded and gets no warning, since it reads like an address, a `bytes32` or a short field. The exception is each call of `multicall(bytes[])`, `submit(bytes)` and `revoke(bytes)`, which is decoded or warned about whatever its length.
+- **Bytes that are not a known call stay opaque.** A CCTP message, a Uniswap router's inputs, a CoW order's UID and the market data in a Vault V2 cap's `idData` are shown raw with a warning. Addresses packed inside such bytes are not named. A value of exactly 20 or 32 bytes, or under 4 bytes, is never decoded and gets no warning, since it reads like an address, a `bytes32` or a short field. The exception is each call of `multicall(bytes[])`, `submit(bytes)` and `revoke(bytes)`, which is decoded or warned about whatever its length.
 - **Amounts are raw integers**, in the token's base units, as kiss-sign's comparison list prints them.
 - **Mainnet only**, and Safe versions 1.1.0, 1.1.1, 1.2.0, 1.3.0, 1.4.0, 1.4.1 and 1.5.0.
 
