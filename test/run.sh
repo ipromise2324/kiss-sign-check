@@ -8,23 +8,27 @@ WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 FAILED=0
 
+# Each case runs in the language L names; HASH is the start of the summary's safeTxHash line in it.
+L=zh-TW HASH='safeTxHash（和錢包顯示的比對）: '
+
 # case <fixture> <Safe version> <recorded safeTxHash, or - for a crafted case> [+text that must appear | -text that must not]...
 case_() {
   local name=$1 version=$2 hash=$3 out want status=PASS
   shift 3
-  printf 'SAFE=%s\nSAFE_VERSION=%s\n' "$(jq -r '(.results[0] // .).safe' "$TEST/fixtures/$name.json")" "$version" > "$WORK/config"
+  printf 'SAFE=%s\nSAFE_VERSION=%s\nLANGUAGE=%s\n' "$(jq -r '(.results[0] // .).safe' "$TEST/fixtures/$name.json")" "$version" "$L" > "$WORK/config"
   rm -rf "$WORK/out"
   out=$(CHECK_CONFIG="$WORK/config" CHECK_KNOWN="$TEST/known-addresses.txt" CHECK_OUT="$WORK/out" \
     /bin/bash "$TEST/../check.sh" --file "$TEST/fixtures/$name.json" 2>&1) || true
   if [ -d "$WORK/out" ]; then out="$out"$'\n'"$(cat "$WORK"/out/*.html)"; fi
-  if [ "$hash" != - ] && ! grep -qF "safeTxHash（和錢包顯示的比對）: $hash" <<<"$out"; then status="FAIL (hash)"; fi
+  if [ "$hash" != - ] && ! grep -qF "$HASH$hash" <<<"$out"; then status="FAIL (hash)"; fi
+  if [ "$L" = en ] && grep -v '比對清單 -->$' <<<"$out" | LC_ALL=en_US.UTF-8 grep -q '[一-龥（），：；。、]'; then status="FAIL (Chinese in English output)"; fi
   for want in "$@"; do
     case $want in
       +*) grep -qF -- "${want#+}" <<<"$out" || status="FAIL (missing: ${want#+})" ;;
       -*) ! grep -qF -- "${want#-}" <<<"$out" || status="FAIL (unexpected: ${want#-})" ;;
     esac
   done
-  printf '%-45s %s\n' "$name" "$status"
+  printf '%-45s %s\n' "$L $name" "$status"
   if [ "$status" != PASS ]; then FAILED=$((FAILED + 1)); echo "$out" | tail -20; fi
 }
 
@@ -92,29 +96,31 @@ case_ hostile-short-call-in-multicall 1.4.1 - '+multicall(bytes[])' '+有 32 byt
 checklist_() {
   local name=$1 status=PASS
   sed -n '/^<!-- 比對清單 -->$/,/^<!-- \/比對清單 -->$/p' "$WORK"/out/*.html | sed 's|<span class="nm">[^<]*</span>||' > "$WORK/checklist"
-  diff -u "$TEST/expected/$name.checklist.html" "$WORK/checklist" > "$WORK/diff" || status="FAIL (比對清單 differs)"
-  printf '%-45s %s\n' "$name 比對清單" "$status"
+  diff -u "$TEST/expected/$L/$name.checklist.html" "$WORK/checklist" > "$WORK/diff" || status="FAIL (比對清單 differs)"
+  printf '%-45s %s\n' "$L $name 比對清單" "$status"
   if [ "$status" != PASS ]; then FAILED=$((FAILED + 1)); head -20 "$WORK/diff"; fi
 }
-case_ morpho-deposit-approve-trailer-other-safe 1.4.1 0xda44113d1fa93aa491fd93713d7aaa0ea34ceb28414cbe4ee1d32d796c1342f3
-checklist_ morpho-deposit-approve-trailer-other-safe
-case_ eth-transfer-null-data 1.3.0 0xd3ac54144c716e0044b461c068ffd19742c022b265bd51f2d01f7c8ad0399df6
-checklist_ eth-transfer-null-data
-case_ merkl-claim-two-tokens 1.3.0 0x1b1774a52d845dce2ea6faac3ab5dd01747adda3af6838dde7f4f4107abdd59a
-checklist_ merkl-claim-two-tokens
-case_ cow-swap-usdc 1.3.0 0x8716f2b4b77fab0162bb87c9f95b49f19ef16a14306677c71dbba39c759c2b66
-checklist_ cow-swap-usdc
-case_ uniswap-swap-approve-usdt-usdc 1.4.1 0xdad1c654fc116f37f62b76f974fd4dc865dbe58387204cbc2355babd99c5de49
-checklist_ uniswap-swap-approve-usdt-usdc
-case_ vault-v2-cap-submit-flowmark 1.4.1 0x930ff75c6abf5ea3f1521515052823baa0ebca9034ec0527ddf48fbfae16721e
-checklist_ vault-v2-cap-submit-flowmark
-case_ vault-v2-reallocate-back 1.4.1 0x716904f002c83c8a16d21795776ee58142b1eea5bda59b885625dc176a41517b
-checklist_ vault-v2-reallocate-back
-
+pinned_() {
+  case_ morpho-deposit-approve-trailer-other-safe 1.4.1 0xda44113d1fa93aa491fd93713d7aaa0ea34ceb28414cbe4ee1d32d796c1342f3
+  checklist_ morpho-deposit-approve-trailer-other-safe
+  case_ eth-transfer-null-data 1.3.0 0xd3ac54144c716e0044b461c068ffd19742c022b265bd51f2d01f7c8ad0399df6
+  checklist_ eth-transfer-null-data
+  case_ merkl-claim-two-tokens 1.3.0 0x1b1774a52d845dce2ea6faac3ab5dd01747adda3af6838dde7f4f4107abdd59a
+  checklist_ merkl-claim-two-tokens
+  case_ cow-swap-usdc 1.3.0 0x8716f2b4b77fab0162bb87c9f95b49f19ef16a14306677c71dbba39c759c2b66
+  checklist_ cow-swap-usdc
+  case_ uniswap-swap-approve-usdt-usdc 1.4.1 0xdad1c654fc116f37f62b76f974fd4dc865dbe58387204cbc2355babd99c5de49
+  checklist_ uniswap-swap-approve-usdt-usdc
+  case_ vault-v2-cap-submit-flowmark 1.4.1 0x930ff75c6abf5ea3f1521515052823baa0ebca9034ec0527ddf48fbfae16721e
+  checklist_ vault-v2-cap-submit-flowmark
+  case_ vault-v2-reallocate-back 1.4.1 0x716904f002c83c8a16d21795776ee58142b1eea5bda59b885625dc176a41517b
+  checklist_ vault-v2-reallocate-back
+}
+pinned_
 hostile_page_() {
   local name=$1 page status=PASS
   printf '0x9999999999999999999999999999999999999999 %s\n' $'<script>alert(1)</script> "><img src=x onerror=alert(1)> \xe2\x80\xaeevil\xe2\x80\x8f\x01' > "$WORK/known-hostile.txt"
-  printf 'SAFE=%s\nSAFE_VERSION=1.4.1\n' "$(jq -r .safe "$TEST/fixtures/$name.json")" > "$WORK/config"
+  printf 'SAFE=%s\nSAFE_VERSION=1.4.1\nLANGUAGE=%s\n' "$(jq -r .safe "$TEST/fixtures/$name.json")" "$L" > "$WORK/config"
   rm -rf "$WORK/out"
   CHECK_CONFIG="$WORK/config" CHECK_KNOWN="$WORK/known-hostile.txt" CHECK_OUT="$WORK/out" \
     /bin/bash "$TEST/../check.sh" --file "$TEST/fixtures/$name.json" > /dev/null 2>&1 || true
@@ -122,10 +128,67 @@ hostile_page_() {
   if grep -qiE '<script|<img' <<<"$page"; then status="FAIL (markup from outside)"; fi
   if LC_ALL=C grep -q $'\xe2\x80\xae\|\xe2\x80\x8f\|\x01\|\x1b' <<<"$page"; then status="FAIL (bidi or control character)"; fi
   grep -qF '&lt;script&gt;alert(1)&lt;/script&gt; &quot;&gt;&lt;img src=x onerror=alert(1)&gt;' <<<"$page" || status="FAIL (name not shown escaped)"
-  printf '%-45s %s\n' "$name" "$status"
+  printf '%-45s %s\n' "$L $name" "$status"
   if [ "$status" != PASS ]; then FAILED=$((FAILED + 1)); fi
 }
 hostile_page_ hostile-html-inject
+
+L=en HASH='safeTxHash (compare with the wallet): '
+case_ eth-transfer-first-nonce 1.3.0 0x5a90cb9c3ae0e4568a9572993c2c6eeefcb5f6c2b77659492ad2332f73205dbc '+none (ETH only)' \
+  '+gasToken or refundReceiver is not the zero address'
+case_ eth-transfer-null-data 1.3.0 0xd3ac54144c716e0044b461c068ffd19742c022b265bd51f2d01f7c8ad0399df6 '+No warnings' \
+  '+Language: English (LANGUAGE=en)' '+<html lang="en">' '+The rows are in English (LANGUAGE=en in config).'
+case_ safe-cancel 1.3.0 0x85b2e62e2fe9b9000331e9c2ebee7102af5968ad77fbcb800cf64eca68984825 '+this Safe (config)' '+No warnings'
+case_ fluid-deposit-usdt-other-safe 1.4.1 0x08e24eed62490209a17956478009d40152551596d3a48f26f37dd00a9a93ce85 \
+  '+DELEGATECALL (official MultiSend)' '+calls the Safe makes: 3' '+No warnings'
+case_ morpho-deposit-approve-trailer-other-safe 1.4.1 0xda44113d1fa93aa491fd93713d7aaa0ea34ceb28414cbe4ee1d32d796c1342f3 \
+  "+call #2's data has 8 bytes after the arguments: 0x" '+Bundler3 call 2/2' '+No warnings' \
+  '+<h2>Warnings <span class="c">0</span></h2>' '+<h2>Notes <span class="c">2</span></h2>' '-!! Warning' \
+  '+<title>check.sh independent check · nonce ' '+<span class="prog">check.sh independent check</span> · nonce ' '+check.sh page for nonce '
+case_ permit2-unlimited-approval 1.4.1 0x5ddf364b6199c45b5bf4e631a52083d125bfadf538a3647cb050dc244b9fea2e \
+  '+has a bytes argument of 868 bytes that cannot be decoded (0xdd46508f…)'
+case_ cctp-receive-then-call 1.4.1 0xaffef7919a235fa81f6ddfcd5b140eb0a56f618b47d17a124fc95fa9735f002c '+has an unknown function selector 0xbcd7e46c'
+case_ hostile-multisend-leftover-bytes 1.4.1 - '+the MultiSend ends with 32 bytes, too few for a call'
+case_ hostile-multisend-length-too-long 1.4.1 - '+a MultiSend length field says 100 bytes, but only 68 bytes are left'
+case_ hostile-delegatecall-not-multisend 1.4.1 - '+call #1 is a DELEGATECALL'
+case_ hostile-multisend-inner-delegatecall 1.4.1 - '+call #2 is a DELEGATECALL' '+call #2 sends 1000000000000000000 wei'
+case_ hostile-add-owner 1.4.1 - '+Safe admin function addOwnerWithThreshold' '+unknown address 0x1111111111111111111111111111111111111111'
+case_ hostile-service-hash-lies 1.4.1 0x5da4666bcaac9ee9e596762e220ffa6407a6da604ea91764bee1d5796810282c "+the service's safeTxHash 0x"
+case_ hostile-two-txs-same-nonce 1.4.1 0x5da4666bcaac9ee9e596762e220ffa6407a6da604ea91764bee1d5796810282c \
+  '+this nonce has 2 different transactions' '+unknown address 0x2222222222222222222222222222222222222222' \
+  '+2 different transactions: sign only the one' '+<h2>Checklist (2 of 2)</h2>'
+case_ hostile-evil-inject 1.4.1 0x103faaa423a43bfd4fc34b19262d494d34852e353bc3449e5d403f299b9458eb \
+  "+the service's safeTxHash is malformed (not shown)" '+Safe admin function addOwnerWithThreshold' "-$(printf '\033')"
+case_ hostile-hidden-bundler-call 1.4.1 - '+has an unknown function selector 0x39029ab6'
+case_ hostile-hidden-callback 1.4.1 - "+Morpho&apos;s callback bundle" '+unknown address 0x5555555555555555555555555555555555555555'
+case_ hostile-dirty-uint8 1.4.1 - '+data is not standard ABI encoding'
+case_ hostile-big-value 1.4.1 - "+Error: cannot encode this transaction's fields"
+case_ hostile-multisend-plain-call 1.4.1 - "+multiSend is not the Safe's own DELEGATECALL to an official MultiSend" '+calls the Safe makes: 1' '-Call #2'
+case_ hostile-short-call-in-multicall 1.4.1 - '+has a bytes argument of 32 bytes that cannot be decoded (0x715018a6…)' '-No warnings'
+pinned_
+hostile_page_ hostile-html-inject
+
+# config's LANGUAGE: en when absent, and any value other than en or zh-TW refused before anything runs.
+language_() {
+  local line=$1 want=$2 out status=PASS
+  printf 'SAFE=%s\nSAFE_VERSION=1.3.0\n%s' "$(jq -r .safe "$TEST/fixtures/eth-transfer-null-data.json")" "$line" > "$WORK/config"
+  rm -rf "$WORK/out"
+  out=$(CHECK_CONFIG="$WORK/config" CHECK_KNOWN="$TEST/known-addresses.txt" CHECK_OUT="$WORK/out" \
+    /bin/bash "$TEST/../check.sh" --file "$TEST/fixtures/eth-transfer-null-data.json" 2>&1) || true
+  grep -qF -- "$want" <<<"$out" || status="FAIL (missing: $want)"
+  line=${line%$'\n'}
+  printf '%-45s %s\n' "LANGUAGE ${line:-absent}" "$status"
+  if [ "$status" != PASS ]; then FAILED=$((FAILED + 1)); echo "$out" | tail -5; fi
+}
+language_ '' 'Language: English (LANGUAGE=en)'
+language_ $'LANGUAGE=fr\n' 'must be en or zh-TW'
+language_ $'LANGUAGE=\n' 'must be en or zh-TW'
+language_ $'LANGUAGE=zh-tw\n' 'must be en or zh-TW'
+
+# Both tables name the same words in the same order.
+table_() { sed -n "/^  $1)\$/,/;; *\$/p" "$TEST/../check.sh" | sed -nE 's/^ +([A-Z_]+)=.*/\1/p'; }
+if [ "$(table_ en)" = "$(table_ zh-TW)" ] && [ -n "$(table_ en)" ]; then printf '%-45s PASS\n' 'language tables'
+else printf '%-45s FAIL\n' 'language tables'; FAILED=$((FAILED + 1)); diff <(table_ en) <(table_ zh-TW) || true; fi
 
 if [ "$FAILED" -gt 0 ]; then echo "$FAILED 個測試失敗"; exit 1; fi
 echo "全部通過"
