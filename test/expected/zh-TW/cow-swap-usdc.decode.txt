@@ -6,7 +6,7 @@
      引數 1:  0xc45125ce75112738d7cde40eef1321f070e792066f9211fd0c4eb1616c309b64b18d844f3578ead22791b5c67f7b6af93266804e6ae5533c
      引數 2:  true
      C1-a1 依 packed bytes32 address uint32 解讀（--hints）:
-     !! 警告: 呼叫 #1 的 56 bytes（在 C1-a1，0xc45125ce…）依 --hints 的讀法顯示：check.sh 只確認各部分能編碼回這些 bytes，不確認合約也這樣讀
+     !! 警告: 呼叫 #1 的 56 bytes（在 C1-a1，0xc45125ce…）依 --hints 的讀法顯示：check.sh 只確認各部分能編碼回這些 bytes，不確認合約也這樣讀。它們在對 setPreSignature(bytes,bool) 的呼叫裡（合約 0x9008D19f58AAbD9eD0D60971565AA8510560ab41）：要自己確認，請在這個合約驗證過的原始碼 https://etherscan.io/address/0x9008D19f58AAbD9eD0D60971565AA8510560ab41#code 或協議文件查它怎麼讀這些 bytes，並核對這裡顯示的地址和金額
        部分 1:  0xc45125ce75112738d7cde40eef1321f070e792066f9211fd0c4eb1616c309b64
        部分 2:  0xb18D844f3578EaD22791B5c67F7B6aF93266804E
        部分 3:  1793413948

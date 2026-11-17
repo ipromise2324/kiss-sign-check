@@ -44,25 +44,25 @@ case_ erc20-transfer-usdc 1.4.1 0x5da4666bcaac9ee9e596762e220ffa6407a6da604ea917
 case_ fluid-deposit-usdt-other-safe 1.4.1 0x08e24eed62490209a17956478009d40152551596d3a48f26f37dd00a9a93ce85 \
   '+DELEGATECALL（官方 MultiSend）' '+approve(address,uint256)' '+deposit(uint256,address)' '+Safe 發出的呼叫數: 3' '+沒有警告'
 case_ morpho-bundles-deposit 1.4.1 0xe1ae687dc96aa54128f515735204350f9bd7c0b4fb27ef0d224854901f98f5e1 \
-  '+vaultBundlesV1Deposit' '+在引數之後多出 8 bytes' '+沒有警告'
+  '+vaultBundlesV1Deposit' '+在引數之後多出 8 bytes' '+它們不屬於任何引數，但合約仍可能讀取' '-沒有警告'
 case_ morpho-deposit-approve-trailer-other-safe 1.4.1 0xda44113d1fa93aa491fd93713d7aaa0ea34ceb28414cbe4ee1d32d796c1342f3 \
-  '+multicall((address,bytes,uint256,bool,bytes32)[])' '+erc20TransferFrom' '+erc4626Deposit' '+在引數之後多出 8 bytes' '+沒有警告' \
-  '+<h2>警告 <span class="c">0</span></h2>' '+<h2>注意 <span class="c">3</span></h2>' '-!! 警告' \
+  '+multicall((address,bytes,uint256,bool,bytes32)[])' '+erc20TransferFrom' '+erc4626Deposit' '+在引數之後多出 8 bytes' \
+  '+<h2>警告 <span class="c">2</span></h2>' '+<h2>注意 <span class="c">1</span></h2>' '-沒有警告' \
   '+0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 是 proxy：它的呼叫依 0x43506849D7C04F9138D1A2050bbF3A0c054402dd 的 ABI 解碼' \
   '+<title>獨立檢查 check.sh · nonce ' '+<span class="prog">獨立檢查 check.sh</span> · nonce ' '+獨立檢查 check.sh 的頁面，nonce '
 case_ merkl-claim-two-tokens 1.3.0 0x1b1774a52d845dce2ea6faac3ab5dd01747adda3af6838dde7f4f4107abdd59a \
   '+claim(address[],address[],uint256[],bytes32[][])' '+沒有警告'
 case_ morpho-urd-claim 1.4.1 0x5001bd84a4a5d9daa0d42fb7148b5da12c0343cdaa0ff046c449efec4b020104 \
-  '+claim(address,address,uint256,bytes32[])' '+沒有警告'
-case_ morpho-withdraw-two-vaults 1.4.1 0xb45eb79f6b3a1c2cb3164b15670ae5543117ca564873dd217e13a90a863d5e33 '+erc4626Withdraw' '+沒有警告'
+  '+claim(address,address,uint256,bytes32[])' '+但合約仍可能讀取' '+<h2>警告 <span class="c">1</span></h2>'
+case_ morpho-withdraw-two-vaults 1.4.1 0xb45eb79f6b3a1c2cb3164b15670ae5543117ca564873dd217e13a90a863d5e33 '+erc4626Withdraw' '+但合約仍可能讀取' '+<h2>警告 <span class="c">1</span></h2>'
 case_ morpho-migrate-all-smokehouse 1.4.1 0x8e7bcfd57f36d400d3bf3ad0fe16c6830c4f572ace092b7abc1ed2dac6f0cc29 \
-  '+erc4626Redeem' '+erc4626Deposit' '+沒有警告'
+  '+erc4626Redeem' '+erc4626Deposit' '+但合約仍可能讀取' '+<h2>警告 <span class="c">1</span></h2>'
 case_ morpho-market-supply 1.4.1 0x12803acf13454b79b24344007a88fc636a12adfdd5f2146367f00e8eaf5bc32a \
-  '+blueBundlesV1Supply' '+在引數之後多出 12 bytes' '+沒有警告'
+  '+blueBundlesV1Supply' '+在引數之後多出 12 bytes' '+但合約仍可能讀取' '+<h2>警告 <span class="c">1</span></h2>'
 case_ morpho-set-authorization 1.4.1 0x84ef6bee2a4aa95ad1c0ba8e9fa9b0ad2cbae3364b53c30f2506f508780db272 \
   '+setAuthorization(address,bool)' '+沒有警告'
 case_ morpho-borrow-set-authorization 1.4.1 0x0aa75b0fa21bb435a0a63eafa003e7b546a4c0b6d9172bf594383b4c0e65037e \
-  '+setAuthorization(address,bool)' '+morphoSupplyCollateral' '+morphoBorrow' '+沒有警告'
+  '+setAuthorization(address,bool)' '+morphoSupplyCollateral' '+morphoBorrow' '+但合約仍可能讀取' '+<h2>警告 <span class="c">1</span></h2>'
 case_ permit2-unlimited-approval 1.4.1 0x5ddf364b6199c45b5bf4e631a52083d125bfadf538a3647cb050dc244b9fea2e \
   '+approve(address,address,uint160,uint48)' '+multicall(bytes[])' '+initializePool((address,address,uint24,int24,address),uint160)' \
   '+modifyLiquidities(bytes,uint256)' '+有 768 bytes 的 bytes 引數無法解碼（0x00000000…）'
@@ -81,7 +81,7 @@ case_ cow-swap-usdc 1.3.0 0x8716f2b4b77fab0162bb87c9f95b49f19ef16a14306677c71dbb
 HINTS=$(hints_of uniswap-swap-approve-usdt-usdc)
 case_ uniswap-swap-approve-usdt-usdc 1.4.1 0xdad1c654fc116f37f62b76f974fd4dc865dbe58387204cbc2355babd99c5de49 \
   '+C4-a2.1.2.3 依 abi (address,address,uint256) 解讀（--hints）:' '+0xa51bc681d6ca3fee6f309b93d84ddee0a7e846aa  本 Safe（config）' \
-  '+呼叫 #4 的 1024 bytes（在 C4-a2.1，0x00000000…）依 --hints 的讀法顯示' '-無法解碼' '-不認識的地址' '+<h2>警告 <span class="c">1</span></h2>'
+  '+呼叫 #4 的 1024 bytes（在 C4-a2.1，0x00000000…）依 --hints 的讀法顯示' '-無法解碼' '-不認識的地址' '+<h2>警告 <span class="c">2</span></h2>'
 HINTS=$(hints_of vault-v2-cap-submit-flowmark)
 case_ vault-v2-cap-submit-flowmark 1.4.1 0x930ff75c6abf5ea3f1521515052823baa0ebca9034ec0527ddf48fbfae16721e \
   '+C1.2.1-a1 依 abi (string,address,(address,address,address,address,uint256)) 解讀（--hints）:' '+部分 1:  &quot;this/marketParams&quot;' \
@@ -114,7 +114,21 @@ case_ hostile-multisend-in-bundle 1.4.1 - '+裡有未知函式 selector 0x8d80ff
   '+Safe 發出的呼叫數: 1' '-呼叫 #2'
 case_ hostile-unverified-target 1.4.1 - '+呼叫 #1 的對象 0x1111111111111111111111111111111111111111 沒有在 Sourcify 驗證' '-transfer(address,uint256)'
 case_ hostile-selector-prefix-address 1.4.1 - '-內含的呼叫' '-無法依'
-case_ hostile-short-call-in-multicall 1.4.1 - '+multicall(bytes[])' '+有 32 bytes 的 bytes 引數無法解碼（0x715018a6…）' '-沒有警告'
+case_ hostile-short-call-in-multicall 1.4.1 - '+multicall(bytes[])' '+有 32 bytes 的 bytes 引數沒有解碼（0x715018a6' '-沒有警告'
+case_ hostile-bytes-20-address 1.4.1 - \
+  '+有 20 bytes 的 bytes 引數沒有解碼（0x5555555555555555555555555555555555555555），它可能是地址 0x5555555555555555555555555555555555555555（!! 不認識）' \
+  '+它們在對 permit(address,address,uint256,uint256,bytes) 的呼叫裡（合約 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48）' \
+  '+原始碼 https://etherscan.io/address/0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48#code，以及它的 implementation 的 https://etherscan.io/address/0x43506849D7C04F9138D1A2050bbF3A0c054402dd#code 或協議文件'
+case_ hostile-bytes-32-padded-address 1.4.1 - '+它可能是前面補了 12 個零 byte 的地址 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48（USDC）'
+case_ hostile-bytes-32-word 1.4.1 - '+有 32 bytes 的 bytes 引數沒有解碼（0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef），它可能是 hash 或數字之類的 32 bytes 值'
+HINTS='v1 C1-a1=abi(address)'
+case_ hostile-bytes-32-padded-address 1.4.1 - '+部分 1:  0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48' '+依 --hints 的讀法顯示' '-沒有解碼'
+HINTS='v1 C1-a1=abi(bytes)'
+case_ hostile-bytes-20-in-hint 1.4.1 - '+依 --hints 的讀法顯示：check.sh 只確認各部分能編碼回這些 bytes，不確認合約也這樣讀。它們在對 setPreSignature(bytes,bool) 的呼叫裡' \
+  '+有 20 bytes 的 bytes 部分沒有解碼（0x5555555555555555555555555555555555555555）' \
+  '+請在這個合約驗證過的原始碼 https://etherscan.io/address/0x9008D19f58AAbD9eD0D60971565AA8510560ab41#code 或協議文件查它怎麼讀這些 bytes，並核對這裡顯示的地址和金額'
+HINTS=''
+case_ hostile-two-nonces-in-file 1.4.1 - '+錯誤: 檔案裡有不只一個 nonce 的交易' '-<!-- 比對清單 -->'
 # Hints that do not fit, or name what is not there: the bytes stay raw with their warning, and a second warning says why.
 HINTS='v1 C1-a1=packed(bytes32,address,uint32)'
 case_ hostile-layout-packed-length 1.4.1 - '+的 57 bytes（在 C1-a1，0xc45125ce…）不符合 --hints: packed bytes32 address uint32 佔 56 bytes，不是 57' \
@@ -132,7 +146,7 @@ case_ hostile-layout-settle-reencode 1.4.1 - '+重新編碼成 96 bytes，不是
 # Hostile hints that fit: a reading of the bytes, never without its warning, and never a row.
 HINTS="v1 C4-a2.1=abi($(printf 'uint256,%.0s' $(seq 31))uint256)"
 case_ uniswap-swap-approve-usdt-usdc 1.4.1 0xdad1c654fc116f37f62b76f974fd4dc865dbe58387204cbc2355babd99c5de49 \
-  '+部分 32:  0' '+依 --hints 的讀法顯示' '-C4-a2.1.2' '+<h2>警告 <span class="c">1</span></h2>'
+  '+部分 32:  0' '+依 --hints 的讀法顯示' '-C4-a2.1.2' '+<h2>警告 <span class="c">2</span></h2>'
 HINTS=$(hints_of uniswap-swap-approve-usdt-usdc | sed 's/C4-a2.1.2.3=abi(address,address,uint256)/C4-a2.1.2.3=abi(address,uint256,uint256)/')
 case_ uniswap-swap-approve-usdt-usdc 1.4.1 0xdad1c654fc116f37f62b76f974fd4dc865dbe58387204cbc2355babd99c5de49 \
   '+部分 2:  942602889720838601399103362193554470438282217130' '+依 --hints 的讀法顯示' '-地址: 0xa51bc681d6ca3fee6f309b93d84ddee0a7e846aa'
@@ -222,6 +236,8 @@ same_checklist_ vault-v2-reallocate-back 1.4.1 "$(hints_of vault-v2-reallocate-b
 same_checklist_ cow-swap-usdc 1.3.0 "$(hints_of cow-swap-usdc)" 'v1 C1-a1=packed(bytes32,bytes10,bytes10,uint32)' 'v1 C1-a1=packed(address)'
 same_checklist_ uniswap-swap-approve-usdt-usdc 1.4.1 "$(hints_of uniswap-swap-approve-usdt-usdc)" "$WORDS32" 'v1 C4-a2.1=abi(address)'
 same_checklist_ crafted-vault-v2-adapter-and-collateral-caps 1.4.1 "$CAP_ID_HINTS"
+same_checklist_ hostile-bytes-20-in-hint 1.4.1 'v1 C1-a1=abi(bytes)' 'v1 C1-a1=abi(bytes) C1-a1.1=packed(address)'
+same_checklist_ hostile-bytes-32-padded-address 1.4.1 'v1 C1-a1=abi(address)' 'v1 C1-a1=packed(bytes32)'
 hostile_page_() {
   local name=$1 page status=PASS
   printf '0x9999999999999999999999999999999999999999 %s\n' $'<script>alert(1)</script> "><img src=x onerror=alert(1)> \xe2\x80\xaeevil\xe2\x80\x8f\x01' > "$WORK/known-hostile.txt"
@@ -247,8 +263,8 @@ case_ safe-cancel 1.3.0 0x85b2e62e2fe9b9000331e9c2ebee7102af5968ad77fbcb800cf64e
 case_ fluid-deposit-usdt-other-safe 1.4.1 0x08e24eed62490209a17956478009d40152551596d3a48f26f37dd00a9a93ce85 \
   '+DELEGATECALL (official MultiSend)' '+calls the Safe makes: 3' '+No warnings'
 case_ morpho-deposit-approve-trailer-other-safe 1.4.1 0xda44113d1fa93aa491fd93713d7aaa0ea34ceb28414cbe4ee1d32d796c1342f3 \
-  "+call #2's data has 8 bytes after the arguments: 0x" '+Bundler3 call 2/2' '+No warnings' \
-  '+<h2>Warnings <span class="c">0</span></h2>' '+<h2>Notes <span class="c">3</span></h2>' '-!! Warning' \
+  "+call #2's data has 8 bytes after the arguments: 0x6915469b25afea44; no argument holds them, but a contract can still read them" \
+  '+Bundler3 call 2/2' '+<h2>Warnings <span class="c">2</span></h2>' '+<h2>Notes <span class="c">1</span></h2>' '-No warnings' \
   '+0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 is a proxy: its calls are decoded with the ABI of 0x43506849D7C04F9138D1A2050bbF3A0c054402dd' \
   '+<title>check.sh independent check · nonce ' '+<span class="prog">check.sh independent check</span> · nonce ' '+check.sh page for nonce '
 case_ permit2-unlimited-approval 1.4.1 0x5ddf364b6199c45b5bf4e631a52083d125bfadf538a3647cb050dc244b9fea2e \
@@ -273,7 +289,17 @@ case_ hostile-hidden-callback 1.4.1 - "+Morpho&apos;s callback bundle" '+unknown
 case_ hostile-dirty-uint8 1.4.1 - '+data is not standard ABI encoding'
 case_ hostile-big-value 1.4.1 - "+Error: cannot encode this transaction's fields"
 case_ hostile-multisend-plain-call 1.4.1 - "+multiSend is not the Safe's own DELEGATECALL to an official MultiSend" '+calls the Safe makes: 1' '-Call #2'
-case_ hostile-short-call-in-multicall 1.4.1 - '+has a bytes argument of 32 bytes that cannot be decoded (0x715018a6…)' '-No warnings'
+case_ hostile-short-call-in-multicall 1.4.1 - '+has a bytes argument of 32 bytes, 0x715018a6' '-No warnings'
+case_ hostile-bytes-20-address 1.4.1 - \
+  '+has a bytes argument of 20 bytes, 0x5555555555555555555555555555555555555555, that is not decoded; it may be the address 0x5555555555555555555555555555555555555555' \
+  "+verified source, https://etherscan.io/address/0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48#code, and its implementation's, https://etherscan.io/address/0x43506849D7C04F9138D1A2050bbF3A0c054402dd#code, or in the protocol's docs"
+case_ hostile-bytes-32-padded-address 1.4.1 - '+it may be the address 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 (USDC) left-padded with 12 zero bytes'
+case_ hostile-bytes-32-word 1.4.1 - '+it may be a 32-byte value such as a hash or a number'
+HINTS='v1 C1-a1=abi(bytes)'
+case_ hostile-bytes-20-in-hint 1.4.1 - '+has a bytes part of 20 bytes, 0x5555555555555555555555555555555555555555' \
+  "+They are in a call to setPreSignature(bytes,bool) on 0x9008D19f58AAbD9eD0D60971565AA8510560ab41: to check them yourself, look up how this contract reads these bytes in its verified source, https://etherscan.io/address/0x9008D19f58AAbD9eD0D60971565AA8510560ab41#code, or in the protocol's docs, and check the addresses and amounts shown here"
+HINTS=''
+case_ hostile-two-nonces-in-file 1.4.1 - '+Error: the file holds transactions of more than one nonce' '-<!-- 比對清單 -->'
 HINTS='v1 C1-a1=packed(bytes32,address,uint32)'
 case_ hostile-layout-packed-length 1.4.1 - "+call #1&apos;s 57 bytes at C1-a1 (0xc45125ce…) do not fit --hints: packed bytes32 address uint32 takes 56 bytes, not 57"
 HINTS='v1 C1-a1=abi(string,address,(address,address,address,address,uint256))'
