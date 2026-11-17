@@ -40,7 +40,7 @@ macOS ships `curl` and Bash 3.2, which is enough. Then:
 ```sh
 git clone https://github.com/ipromise2324/kiss-sign-check.git
 cd kiss-sign-check
-less check.sh known-functions.txt  # read both in full, once
+less check.sh known-functions.txt known-layouts.txt  # read all three in full, once
 git rev-parse HEAD                 # write down the commit you read
 git status --short                 # before each use: the same commit, and nothing printed here
 cp config.example config  # set SAFE, SAFE_VERSION (as the Safe web app shows it) and LANGUAGE
@@ -83,7 +83,13 @@ The page and the terminal are in the language `config` sets, as kiss-sign's page
 
 `check.sh` decodes only the functions in [`known-functions.txt`](known-functions.txt), one signature per line, and computes each selector with `cast sig`. It never guesses a function or looks one up online. Today the list covers ERC-20, ERC-4626 vaults, Safe MultiSend, Morpho Bundler3 and its adapters, Uniswap Permit2's `approve` and the Universal Router's `execute`, CoW's `setPreSignature`, Morpho Blue's `setAuthorization`, Morpho Vault V2's admin functions (`multicall`, `submit`, `revoke`, the cap changes, `allocate` and `deallocate`), Morpho's Universal Rewards Distributor's `claim`, Merkl and Fluid claims, CCTP's `receiveMessage`, and the Safe's own admin functions. A decoder is matched by the full signature, so Vault V2's `multicall(bytes[])` and Bundler3's `multicall` are told apart.
 
-Each kiss-sign template's calls decode, so their rows match `verify`'s. Some bytes inside them are not a call, and each gets one warning while the rows still match: the market data inside a Vault V2 cap's `idData`, a Uniswap swap's inputs, which hold its recipient and minimum out, and a CoW order's UID, which names the order only by its digest. What those bytes say rests on kiss-sign's checks.
+Each kiss-sign template's calls decode, so their rows match `verify`'s.
+
+### Teach it a data layout
+
+Some `bytes` arguments hold no call but data in a fixed shape: a Morpho Vault V2 cap id, a CoW order UID, the inputs of a Uniswap Universal Router `execute`. [`known-layouts.txt`](known-layouts.txt), also written by hand from each protocol's source with the source cited above each line, says how to read them: as `abi.encode` of some types, as `abi.encodePacked` of fixed-size parts, or as a table of command bytes, at most two levels deep. The full decode then shows the parts, with every address named from your list, and that argument's warning is dropped, but only when the parts encode back to exactly the original bytes. Otherwise the warning stays, with a second one saying why. Decoded parts are never comparison-list rows, so the list is the same with or without them.
+
+The shipped file reads Vault V2's cap ids and a market adapter's `allocate` and `deallocate` data, CoW's order UID, and the Universal Router's `PERMIT2_PERMIT` and `V4_SWAP` commands with the v4 swap, settle and take actions. Every other router command or v4 action still warns, as does a bytes part such as a permit's 65-byte signature. A clean decode is not a judgment: a cap id that decodes may name a market you did not mean, and a swap's amounts are only shown. The format, its checks and the full coverage list are in [docs/known-layouts.md](docs/known-layouts.md).
 
 ## What it checks
 
@@ -106,7 +112,7 @@ Each kiss-sign template's calls decode, so their rows match `verify`'s. Some byt
 
 - **It does not judge.** It does not know whether a contract is the protocol's real one, or whether the transaction is what you meant. kiss-sign does that, against your card. `check.sh` only shows what the transaction is, so read its calls against what you meant to do.
 - **It does not read the chain or simulate.** It sees the transaction, not its effects.
-- **Bytes that are not a known call stay opaque.** A CCTP message, a Uniswap router's inputs, a CoW order's UID and the market data in a Vault V2 cap's `idData` are shown raw with a warning. Addresses packed inside such bytes are not named. A value of exactly 20 or 32 bytes, or under 4 bytes, is never decoded and gets no warning, since it reads like an address, a `bytes32` or a short field. The exception is each call of `multicall(bytes[])`, `submit(bytes)` and `revoke(bytes)`, which is decoded or warned about whatever its length.
+- **Bytes that are neither a known call nor a known layout stay opaque.** A CCTP message, or a Uniswap router command `known-layouts.txt` does not cover, is shown raw with a warning. Addresses packed inside such bytes are not named. A value of exactly 20 or 32 bytes, or under 4 bytes, is never decoded and gets no warning, since it reads like an address, a `bytes32` or a short field. The exception is each call of `multicall(bytes[])`, `submit(bytes)` and `revoke(bytes)`, which is decoded or warned about whatever its length.
 - **Amounts are raw integers**, in the token's base units, as kiss-sign's comparison list prints them.
 - **Mainnet only**, and Safe versions 1.1.0, 1.1.1, 1.2.0, 1.3.0, 1.4.0, 1.4.1 and 1.5.0.
 
@@ -116,7 +122,7 @@ Each kiss-sign template's calls decode, so their rows match `verify`'s. Some byt
 /bin/bash test/run.sh
 ```
 
-[`test/fixtures/`](test/fixtures/) holds real transactions of other Safes, recorded by kiss-sign, and crafted hostile cases (`hostile-*`). Each real case must reproduce its recorded on-chain safeTxHash. The tests read both the terminal and the page, compare the comparison lists of seven transactions, in each language, with [`test/expected/en/`](test/expected/en/) and [`test/expected/zh-TW/`](test/expected/zh-TW/) (a Bundler3 deposit, an ETH transfer, a Merkl claim, a CoW order, a Uniswap swap with its approvals, a Vault V2 cap submission and a reallocation), which kiss-sign's own tests also pin, and check that hostile text in the service's fields is never shown, and that the same text as an address-list name is shown escaped, with its bidi and control characters replaced. `test/known-addresses.txt` is for the tests only; do not sign with it.
+[`test/fixtures/`](test/fixtures/) holds real transactions of other Safes, recorded by kiss-sign, and crafted cases: hostile ones (`hostile-*`) and the two Vault V2 cap ids no recorded transaction holds. Each real case must reproduce its recorded on-chain safeTxHash. The tests read both the terminal and the page, compare the comparison lists of seven transactions, in each language, with [`test/expected/en/`](test/expected/en/) and [`test/expected/zh-TW/`](test/expected/zh-TW/) (a Bundler3 deposit, an ETH transfer, a Merkl claim, a CoW order, a Uniswap swap with its approvals, a Vault V2 cap submission and a reallocation), which kiss-sign's own tests also pin, compare the full decode of five cases `known-layouts.txt` reads, check that a layout that does not fit keeps its warning and says why, and check that hostile text in the service's fields is never shown, and that the same text as an address-list name is shown escaped, with its bidi and control characters replaced. `test/known-addresses.txt` is for the tests only; do not sign with it.
 
 The official MultiSend addresses in `check.sh` come from [safe-global/safe-deployments](https://github.com/safe-global/safe-deployments) at commit `ca9cb0d2d5f5175fc8e41d579f356748d2bc1c62`.
 
