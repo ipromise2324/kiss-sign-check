@@ -43,8 +43,10 @@ cd kiss-sign-check
 less check.sh known-functions.txt  # read both in full, once
 git rev-parse HEAD                 # write down the commit you read
 git status --short                 # before each use: the same commit, and nothing printed here
-cp config.example config  # set SAFE to your Safe and SAFE_VERSION to its version, as the Safe web app shows it
+cp config.example config  # set SAFE, SAFE_VERSION (as the Safe web app shows it) and LANGUAGE
 ```
+
+Set `LANGUAGE` to the language your kiss-sign uses, the one its `init` recorded: `en` (the default, also when the line is missing) or `zh-TW`. All of `check.sh`'s output follows it, the 比對清單 included, so with two different languages the rows differ and you stop. Any other value is refused.
 
 A wrong `SAFE_VERSION` can give a hash that does not match your wallet, and a matching hash does not prove the version is right: versions 1.3.0 to 1.5.0 hash the same way, as do 1.1.0 to 1.2.0.
 
@@ -65,8 +67,8 @@ It fetches the transactions at that nonce from `api.safe.global`, mainnet only a
 This is a real run, on another Safe's Morpho vault deposit: an `approve` and a Bundler3 `multicall`, batched through MultiSend. Open the page and check four things:
 
 1. **The hashes.** Compare them with your hardware wallet's screen, character by character: the domain hash and message hash, or the safeTxHash if that is what your wallet shows. If they differ, do not sign.
-2. **The 比對清單 (comparison list).** Compare it with the one on kiss-sign `verify`'s page (headed Checklist when that page is in English), row by row, as in the picture above. Every row must be equal, except the name column on the right, where each side names addresses from its own list. If any other row differs, stop.
-3. **The warnings.** Read every `!! 警告`. A warning means look closer, not necessarily stop. A note, such as the 8 bytes above, is a fact of the decode that `check.sh` does not judge.
+2. **The 比對清單 (comparison list).** Compare it with the Checklist on kiss-sign `verify`'s page (比對清單 when both are in Traditional Chinese), row by row, as in the picture above. Every row must be equal, except the name column on the right, where each side names addresses from its own list. If any other row differs, stop.
+3. **The warnings.** Read every `!! Warning` line (`!! 警告` in Traditional Chinese). A warning means look closer, not necessarily stop. A note, such as the 8 bytes above, is a fact of the decode that `check.sh` does not judge.
 4. **The calls themselves.** Read every call's `to`, amount and recipient against what you meant to do. Equal rows prove only that both computers decoded the same bytes the same way: a work computer that proposed the wrong transaction can still show its true decode.
 
 The page also holds the full decode, with every call and every address named from your list:
@@ -75,7 +77,7 @@ The page also holds the full decode, with every call and every address named fro
 
 If several transactions share the nonce, the summary and the page show each one with its hash. Sign only the one whose hashes your wallet shows.
 
-The page and the terminal are in Traditional Chinese. kiss-sign's own page is in English unless its signer chose Traditional Chinese, but its comparison list keeps the same Traditional Chinese row labels, so the two lists still compare byte for byte. The page runs no script and loads nothing from outside. Its accent colour differs from kiss-sign's, so the two pages are not mistaken for each other side by side. The row format is in [docs/checklist.md](docs/checklist.md).
+The page and the terminal are in the language `config` sets, as kiss-sign's page is in the one its `init` recorded; set both the same, and every row but the name column compares byte for byte. The page runs no script and loads nothing from outside. Its accent colour differs from kiss-sign's, so the two pages are not mistaken for each other side by side. The row format is in [docs/checklist.md](docs/checklist.md).
 
 ### Teach it a new function
 

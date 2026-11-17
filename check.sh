@@ -11,25 +11,246 @@ KNOWN=${CHECK_KNOWN:-$DIR/known-addresses.txt}
 OUT=${CHECK_OUT:-$DIR/out}
 ZERO=0x0000000000000000000000000000000000000000
 
-die() { echo "錯誤: $*" >&2; exit 1; }
+WORDS=en
+if [ -f "$CONFIG" ] && grep -q '^LANGUAGE=' "$CONFIG"; then WORDS=$(sed -n 's/^LANGUAGE=//p' "$CONFIG"); fi
+
+# Every fixed word this script writes, one table per language. The 比對清單's words (G_, K_, V_ and F_) must be,
+# word for word, the ones kiss-sign writes for the same language (its src/verify/checklist.ts), or the rows differ.
+case $WORDS in
+  en)
+    G_TX='Transaction'
+    G_CALL='Call #%s'
+    G_BUNDLE='Bundler3 call %s/%s'
+    G_INNER='Inner call'
+    G_END='Total'
+    K_VALUE='value (wei)'
+    K_FN='function'
+    K_ARG='argument %s'
+    K_EXTRA='bytes after the arguments'
+    K_COUNT='calls the Safe makes'
+    V_NONE='none'
+    F_BYTES='%s bytes, keccak256 %s'
+    F_TEXT='%s characters, keccak256 %s'
+    N_SAFE='this Safe (config)'
+    N_ZERO='zero address'
+    N_OFFICIAL=' (official)'
+    N_UNKNOWN='!! unknown'
+    N_UNKNOWN_FN='!! unknown function'
+    N_UNDECODABLE='!! cannot decode as %s'
+    N_WALLET='compare with the hardware wallet'
+    E_PREFIX='Error: '
+    E_TOOL='%s not found. Install Foundry (cast), curl and jq.'
+    E_CAST='this version of cast decodes in a shape this script does not expect'
+    E_CONFIG='%s not found (create it from config.example)'
+    E_KNOWN='%s not found (create it from known-addresses.example.txt)'
+    E_SAFE='SAFE in config is not 0x and 40 hex characters'
+    E_VERSION='unsupported SAFE_VERSION (supported: 1.1.0, 1.1.1, 1.2.0, 1.3.0, 1.4.0, 1.4.1, 1.5.0)'
+    E_KNOWN_LINE='this line of known-addresses.txt is malformed: %s %s'
+    E_DUP_ADDR='the same address appears twice: %s'
+    E_DUP_FN='two functions in known-functions.txt share a selector: %s'
+    E_JQ="this version of jq's @html or gsub differs from what this script expects (jq 1.7 or later is needed)"
+    E_NOT_ADDR='%s is not an address'
+    E_NOT_UINT='%s is not an integer'
+    E_DATA='data is not hex bytes'
+    E_OP='operation must be 0 or 1'
+    E_TX_SAFE="this transaction's safe is not the SAFE in config"
+    E_ENCODE="cannot encode this transaction's fields (a number too large?)"
+    E_FETCH='cannot fetch the transactions from the Safe Transaction Service'
+    E_PAGES='the service returned more than one page: too many transactions at this nonce'
+    E_OTHER_NONCE='the service returned transactions of another nonce'
+    E_USAGE='usage: ./check.sh <nonce> or ./check.sh --file <tx.json>'
+    E_NO_TX='no transaction at this nonce'
+    W_PREFIX='!! Warning: '
+    W_UNKNOWN_ADDR='unknown address %s'
+    W_CALL_VALUE='call #%s sends %s wei'
+    W_CALL_MULTISEND='call #%s CALLs a MultiSend: its calls are made by the MultiSend contract, not the Safe'
+    W_DELEGATECALL="call #%s is a DELEGATECALL (normal only for the Safe's own call into an official MultiSend): %s"
+    W_UNKNOWN_FN='call #%s has an unknown function selector %s (not in known-functions.txt)'
+    W_ADMIN='Safe admin function %s'
+    W_UNDECODABLE="call #%s's data cannot be decoded as %s"
+    W_NOT_ABI="call #%s's %s data is not standard ABI encoding (its arguments encode back differently); the decode above may be incomplete"
+    W_NOT_SPLIT="call #%s's multiSend is not the Safe's own DELEGATECALL to an official MultiSend; its calls are not split"
+    W_BYTES='call #%s has a bytes argument of %s bytes that cannot be decoded (%s…); data or calls inside it may not be shown'
+    W_MS_LEFTOVER='the MultiSend ends with %s bytes, too few for a call'
+    W_MS_OP='a MultiSend operation is 0x%s, not 0 or 1'
+    W_MS_HUGE='a MultiSend length field is unreasonably large'
+    W_MS_LENGTH='a MultiSend length field says %s bytes, but only %s bytes are left'
+    W_MS_ZERO='a to inside the MultiSend is the zero address (MultiSend 1.5.0 turns it into a call to the Safe itself)'
+    W_GAS='safeTxGas, baseGas or gasPrice is not 0 (the Safe may pay the executor)'
+    W_REFUND='gasToken or refundReceiver is not the zero address'
+    W_SAME_NONCE='this nonce has %s different transactions, each listed; sign only the one whose safeTxHash the wallet shows'
+    W_HASH_FORMAT="the service's safeTxHash is malformed (not shown)"
+    W_HASH_DIFFERS="the service's safeTxHash %s differs from the one computed here"
+    O_PREFIX='Note: '
+    O_EXTRA="call #%s's data has %s bytes after the arguments: 0x%s"
+    T_ETH_ONLY='data:      none (ETH only)'
+    T_VALUE='value:     %s wei (%s ETH)'
+    T_OFFICIAL='operation: 1 DELEGATECALL (official MultiSend)'
+    T_FN='function:  %s   (cast sig = %s)'
+    T_ARG='  argument %s:  %s'
+    T_ADDR='address: '
+    T_CALLBACK="Morpho's callback bundle:"
+    T_INNER='inner call data (bytes argument):'
+    T_SPLIT='MultiSend split into:'
+    T_HEAD='================ Safe transaction nonce %s ================'
+    T_VERSION='Safe version:   %s (%s)'
+    T_KNOWN='address list:   %s'
+    T_CALLS="Calls (to, value, operation and data decoded here, not from the service's dataDecoded):"
+    T_SUMMARY='================ Summary nonce %s ================'
+    T_LANGUAGE='Language: English (LANGUAGE=en)'
+    T_HASH='safeTxHash (compare with the wallet): %s'
+    T_NOTES='Notes:'
+    T_NO_WARNINGS='No warnings'
+    T_WARNINGS='!! Warnings:'
+    T_PAGE='check.sh page for nonce %s (full decode and checklist): %s'
+    T_OPEN='Open: open %q\n'
+    P_LANG='en'
+    P_PASS='pass'
+    P_WARN='warning'
+    P_NOTE='note'
+    P_PROG='check.sh independent check'
+    P_SUB='check.sh on the independent computer only decodes this transaction; it does not judge whether it is right.'
+    P_MANY='%s different transactions: sign only the one whose safeTxHash the hardware wallet shows'
+    P_CHECKLIST='Checklist'
+    P_NTH=' (%s of %s)'
+    P_HAS_WARNINGS='Warnings: %s. Read them before signing.'
+    P_LEAD="Compare each row with the same row of the kiss-sign verify page: the row id, the field and the value must be exactly the same. The last column is each page's own names; do not compare it. Also compare the safeTxHash, domain hash and message hash character by character with the hardware wallet."
+    P_LANGUAGE='The rows are in English (LANGUAGE=en in config). kiss-sign must be set to English too, or the rows differ.'
+    P_WARNINGS='Warnings'
+    P_NOTES='Notes'
+    P_NOTES_LEAD='Facts the decode found, not warnings. check.sh does not judge them.'
+    P_LOG='Full decode'
+    P_LOG_LEAD="Everything check.sh decoded itself, with every address's name. Long values are folded; open one to read it in full."
+    P_LONG=' (%s characters)'
+    P_FOOTER='Written by check.sh with only cast, curl and jq; it holds no AI text. Config: %s, address list: %s.' ;;
+  zh-TW)
+    G_TX='交易'
+    G_CALL='呼叫 #%s'
+    G_BUNDLE='Bundler3 呼叫 %s/%s'
+    G_INNER='內含的呼叫'
+    G_END='總計'
+    K_VALUE='value（wei）'
+    K_FN='函式'
+    K_ARG='引數 %s'
+    K_EXTRA='引數後多出的 bytes'
+    K_COUNT='Safe 發出的呼叫數'
+    V_NONE='無'
+    F_BYTES='%s bytes，keccak256 %s'
+    F_TEXT='%s 字元，keccak256 %s'
+    N_SAFE='本 Safe（config）'
+    N_ZERO='零地址'
+    N_OFFICIAL='（官方）'
+    N_UNKNOWN='!! 不認識'
+    N_UNKNOWN_FN='!! 未知函式'
+    N_UNDECODABLE='!! 無法依 %s 解碼'
+    N_WALLET='和硬體錢包比對'
+    E_PREFIX='錯誤: '
+    E_TOOL='找不到 %s。請安裝 Foundry（cast）、curl 和 jq。'
+    E_CAST='這個版本的 cast 解碼輸出格式和本程式預期的不同'
+    E_CONFIG='找不到 %s（請照 config.example 建立）'
+    E_KNOWN='找不到 %s（請照 known-addresses.example.txt 建立）'
+    E_SAFE='config 的 SAFE 不是 0x 加 40 個十六進位字元'
+    E_VERSION='不支援的 SAFE_VERSION（支援 1.1.0、1.1.1、1.2.0、1.3.0、1.4.0、1.4.1、1.5.0）'
+    E_KNOWN_LINE='known-addresses.txt 這行格式不對: %s %s'
+    E_DUP_ADDR='同一個地址出現兩次: %s'
+    E_DUP_FN='known-functions.txt 有兩個函式的 selector 相同: %s'
+    E_JQ='這個版本的 jq 的 @html 或 gsub 和本程式預期的不同（需要 jq 1.7 以上）'
+    E_NOT_ADDR='%s 不是地址'
+    E_NOT_UINT='%s 不是整數'
+    E_DATA='data 不是十六進位 bytes'
+    E_OP='operation 必須是 0 或 1'
+    E_TX_SAFE='這筆交易的 safe 不是 config 的 SAFE'
+    E_ENCODE='無法編碼這筆交易的欄位（數字太大？）'
+    E_FETCH='無法從 Safe Transaction Service 取得交易'
+    E_PAGES='服務回傳超過一頁，這個 nonce 的交易太多'
+    E_OTHER_NONCE='服務回傳了別的 nonce 的交易'
+    E_USAGE='用法: ./check.sh <nonce> 或 ./check.sh --file <tx.json>'
+    E_NO_TX='這個 nonce 沒有交易'
+    W_PREFIX='!! 警告: '
+    W_UNKNOWN_ADDR='不認識的地址 %s'
+    W_CALL_VALUE='呼叫 #%s 附帶 %s wei'
+    W_CALL_MULTISEND='呼叫 #%s 用 CALL 呼叫 MultiSend：裡面的呼叫由 MultiSend 合約發出，不是 Safe'
+    W_DELEGATECALL='呼叫 #%s 是 DELEGATECALL（只有 Safe 最外層呼叫官方 MultiSend 時才正常）: %s'
+    W_UNKNOWN_FN='呼叫 #%s 裡有未知函式 selector %s（不在 known-functions.txt）'
+    W_ADMIN='Safe 管理函式 %s'
+    W_UNDECODABLE='呼叫 #%s 的資料無法依 %s 解碼'
+    W_NOT_ABI='呼叫 #%s 的 %s 資料不是標準 ABI 編碼（引數重新編碼後不同），上面的解碼可能不完整'
+    W_NOT_SPLIT='呼叫 #%s 的 multiSend 不是 Safe 最外層對官方 MultiSend 的 DELEGATECALL，裡面的呼叫沒有拆開'
+    W_BYTES='呼叫 #%s 有 %s bytes 的 bytes 引數無法解碼（%s…），裡面可能有資料或呼叫沒顯示'
+    W_MS_LEFTOVER='MultiSend 尾端剩 %s bytes，不足一筆呼叫'
+    W_MS_OP='MultiSend 的 operation 是 0x%s，不是 0 或 1'
+    W_MS_HUGE='MultiSend 的長度欄位大得不合理'
+    W_MS_LENGTH='MultiSend 的長度欄位說 %s bytes，但只剩 %s bytes'
+    W_MS_ZERO='MultiSend 裡的 to 是零地址（1.5.0 的 MultiSend 會改成呼叫 Safe 自己）'
+    W_GAS='safeTxGas、baseGas 或 gasPrice 不是 0（可能從 Safe 付款給執行者）'
+    W_REFUND='gasToken 或 refundReceiver 不是零地址'
+    W_SAME_NONCE='這個 nonce 有 %s 筆不同的交易，每筆都列出；只簽 safeTxHash 和錢包顯示相同的那一筆'
+    W_HASH_FORMAT='服務給的 safeTxHash 格式不對（不顯示）'
+    W_HASH_DIFFERS='服務給的 safeTxHash %s 和本機算的不同'
+    O_PREFIX='注意: '
+    O_EXTRA='呼叫 #%s 的資料在引數之後多出 %s bytes: 0x%s'
+    T_ETH_ONLY='data:      無（只轉 ETH）'
+    T_VALUE='value:     %s wei（%s ETH）'
+    T_OFFICIAL='operation: 1 DELEGATECALL（官方 MultiSend）'
+    T_FN='函式:      %s   （cast sig = %s）'
+    T_ARG='  引數 %s:  %s'
+    T_ADDR='地址: '
+    T_CALLBACK='Morpho 回呼的 bundle:'
+    T_INNER='內含的呼叫資料（bytes 引數）:'
+    T_SPLIT='MultiSend 拆開如下:'
+    T_HEAD='================ Safe 交易 nonce %s ================'
+    T_VERSION='Safe 版本:      %s（%s）'
+    T_KNOWN='地址清單:       %s'
+    T_CALLS='呼叫內容（to、value、operation 和 data 本機解碼，不用服務的 dataDecoded）:'
+    T_SUMMARY='================ 摘要 nonce %s ================'
+    T_LANGUAGE='語言: 繁體中文（LANGUAGE=zh-TW）'
+    T_HASH='safeTxHash（和錢包顯示的比對）: %s'
+    T_NOTES='注意:'
+    T_NO_WARNINGS='沒有警告'
+    T_WARNINGS='!! 警告:'
+    T_PAGE='獨立檢查 check.sh 的頁面，nonce %s（完整解碼和比對清單）: %s'
+    T_OPEN='打開: open %q\n'
+    P_LANG='zh-Hant'
+    P_PASS='通過'
+    P_WARN='警告'
+    P_NOTE='注意'
+    P_PROG='獨立檢查 check.sh'
+    P_SUB='獨立電腦上的 check.sh 只解碼這筆交易，不判斷它對不對。'
+    P_MANY='%s 筆不同的交易：只簽 safeTxHash 和硬體錢包相同的那一筆'
+    P_CHECKLIST='比對清單'
+    P_NTH='（第 %s/%s 筆）'
+    P_HAS_WARNINGS='有 %s 個警告，看過再簽'
+    P_LEAD='每一列和 kiss-sign verify 頁面的同一列比對：列號、欄位和值都要一模一樣。最右一欄是各自的名字，不用比。safeTxHash、domain hash 和 message hash 也要和硬體錢包逐字比對。'
+    P_LANGUAGE='各列是繁體中文（config 的 LANGUAGE=zh-TW）。kiss-sign 也要設成繁體中文，不然各列會不同。'
+    P_WARNINGS='警告'
+    P_NOTES='注意'
+    P_NOTES_LEAD='解碼看到的事實，不是警告。check.sh 不判斷它們。'
+    P_LOG='完整解碼'
+    P_LOG_LEAD='check.sh 自己解出的全部內容，含每個地址的名字。很長的值收起來，點開看全文。'
+    P_LONG='（%s 字元）'
+    P_FOOTER='這頁由 check.sh 寫出，只用 cast、curl、jq，不含 AI 文字。設定：%s，地址清單：%s。' ;;
+  *) printf 'Error: LANGUAGE in %s must be en or zh-TW, not %q\n' "$CONFIG" "$WORDS" >&2; exit 1 ;;
+esac
+
+die() { printf "$E_PREFIX$1\n" "${@:2}" >&2; exit 1; }
 lc() { printf '%s' "$1" | tr 'A-F' 'a-f'; }
 is_addr() { [[ $1 =~ ^0x[0-9a-fA-F]{40}$ ]]; }
 is_uint() { [[ $1 =~ ^(0|[1-9][0-9]*)$ ]]; }
 
 for tool in cast curl jq; do
-  command -v "$tool" >/dev/null || die "找不到 ${tool}。請安裝 Foundry（cast）、curl 和 jq。"
+  command -v "$tool" >/dev/null || die "$E_TOOL" "$tool"
 done
 HINT='s/ \[-?[0-9.]+e[0-9]+\]//g'  # cast's "10001000000 [1e10]" -> "10001000000"
 [ "$(cast decode-calldata --json 'f(address,bytes,uint256)' "$(cast calldata 'f(address,bytes,uint256)' $ZERO 0x01 1000000000000000000000)" | jq -c .data)" \
   = "[\"$ZERO\",\"0x01\",\"1000000000000000000000\"]" ] \
   && [ "$(cast decode-calldata 'f(int256)' "$(cast calldata 'f(int256)' -- -1000000000000000000000)" | sed -E "$HINT")" = -1000000000000000000000 ] \
-  || die "這個版本的 cast 解碼輸出格式和本程式預期的不同"
-[ -f "$CONFIG" ] || die "找不到 ${CONFIG}（請照 config.example 建立）"
-[ -f "$KNOWN" ] || die "找不到 ${KNOWN}（請照 known-addresses.example.txt 建立）"
+  || die "$E_CAST"
+[ -f "$CONFIG" ] || die "$E_CONFIG" "$CONFIG"
+[ -f "$KNOWN" ] || die "$E_KNOWN" "$KNOWN"
 
 SAFE=$(sed -n 's/^SAFE=//p' "$CONFIG")
 SAFE_VERSION=$(sed -n 's/^SAFE_VERSION=//p' "$CONFIG")
-is_addr "$SAFE" || die "config 的 SAFE 不是 0x 加 40 個十六進位字元"
+is_addr "$SAFE" || die "$E_SAFE"
 SAFE=$(lc "$SAFE")
 
 case $SAFE_VERSION in
@@ -39,32 +260,32 @@ case $SAFE_VERSION in
   1.1.0|1.1.1|1.2.0)
     typehash=$(cast keccak 'EIP712Domain(address verifyingContract)')
     encoded=$(cast abi-encode 'f(bytes32,address)' "$typehash" "$SAFE") ;;
-  *) die "不支援的 SAFE_VERSION（支援 1.1.0、1.1.1、1.2.0、1.3.0、1.4.0、1.4.1、1.5.0）" ;;
+  *) die "$E_VERSION" ;;
 esac
 DOMAIN_SEPARATOR=$(cast keccak "$encoded")
 SAFE_TX_TYPEHASH=$(cast keccak 'SafeTx(address to,uint256 value,bytes data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address refundReceiver,uint256 nonce)')
 
 # Official Safe MultiSend and MultiSendCallOnly on mainnet, from github.com/safe-global/safe-deployments
 # at commit ca9cb0d2d5f5175fc8e41d579f356748d2bc1c62 (src/assets/v1.1.1, v1.3.0, v1.4.1, v1.5.0).
-MULTISENDS="0x8d29be29923b68abfdd21e541b9374737b49cdad Safe MultiSend 1.1.1（官方）
-0xa238cbeb142c10ef7ad8442c6d1f9e89e07e7761 Safe MultiSend 1.3.0（官方）
-0x998739bfdaadde7c933b942a68053933098f9eda Safe MultiSend 1.3.0 eip155（官方）
-0x40a2accbd92bca938b02010e17a5b8929b49130d Safe MultiSendCallOnly 1.3.0（官方）
-0xa1dabef33b3b82c7814b6d82a79e50f4ac44102b Safe MultiSendCallOnly 1.3.0 eip155（官方）
-0x38869bf66a61cf6bdb996a6ae40d5853fd43b526 Safe MultiSend 1.4.1（官方）
-0x9641d764fc13c8b624c04430c7356c1c7c8102e2 Safe MultiSendCallOnly 1.4.1（官方）
-0x218543288004cd07832472d464648173c77d7eb7 Safe MultiSend 1.5.0（官方）
-0xa83c336b20401af773b6219ba5027174338d1836 Safe MultiSendCallOnly 1.5.0（官方）"
+MULTISENDS="0x8d29be29923b68abfdd21e541b9374737b49cdad Safe MultiSend 1.1.1$N_OFFICIAL
+0xa238cbeb142c10ef7ad8442c6d1f9e89e07e7761 Safe MultiSend 1.3.0$N_OFFICIAL
+0x998739bfdaadde7c933b942a68053933098f9eda Safe MultiSend 1.3.0 eip155$N_OFFICIAL
+0x40a2accbd92bca938b02010e17a5b8929b49130d Safe MultiSendCallOnly 1.3.0$N_OFFICIAL
+0xa1dabef33b3b82c7814b6d82a79e50f4ac44102b Safe MultiSendCallOnly 1.3.0 eip155$N_OFFICIAL
+0x38869bf66a61cf6bdb996a6ae40d5853fd43b526 Safe MultiSend 1.4.1$N_OFFICIAL
+0x9641d764fc13c8b624c04430c7356c1c7c8102e2 Safe MultiSendCallOnly 1.4.1$N_OFFICIAL
+0x218543288004cd07832472d464648173c77d7eb7 Safe MultiSend 1.5.0$N_OFFICIAL
+0xa83c336b20401af773b6219ba5027174338d1836 Safe MultiSendCallOnly 1.5.0$N_OFFICIAL"
 
 ADDRESSES=$MULTISENDS
 while read -r addr name; do
   case $addr in ''|'#'*) continue ;; esac
-  is_addr "$addr" && [ -n "$name" ] || die "known-addresses.txt 這行格式不對: $addr $name"
+  is_addr "$addr" && [ -n "$name" ] || die "$E_KNOWN_LINE" "$addr" "$name"
   printf '%s\n' "$MULTISENDS" | grep -q "^$(lc "$addr") " && continue  # already named by the official list above
   ADDRESSES="$ADDRESSES"$'\n'"$(lc "$addr") $name"
 done < "$KNOWN"
 dup=$(printf '%s\n' "$ADDRESSES" | cut -d' ' -f1 | sort | uniq -d)
-[ -z "$dup" ] || die "同一個地址出現兩次: $dup"
+[ -z "$dup" ] || die "$E_DUP_ADDR" "$dup"
 
 FUNCTIONS=""
 while read -r sig; do
@@ -72,16 +293,17 @@ while read -r sig; do
   FUNCTIONS="$FUNCTIONS$(cast sig "$sig") $sig"$'\n'
 done < "$DIR/known-functions.txt"
 dup=$(printf '%s' "$FUNCTIONS" | cut -d' ' -f1 | sort | uniq -d)
-[ -z "$dup" ] || die "known-functions.txt 有兩個函式的 selector 相同: $dup"
+[ -z "$dup" ] || die "$E_DUP_FN" "$dup"
 
-warn() { echo "$1!! 警告: $2"; WARNINGS="$WARNINGS  - $2"$'\n'; }
-note() { echo "$1注意: $2"; NOTES="$NOTES  - $2"$'\n'; }
+# warn and note take an indent, then a format from the table above and its arguments.
+warn() { local m; m=$(printf "$2" "${@:3}"); echo "$1$W_PREFIX$m"; WARNINGS="$WARNINGS  - $m"$'\n'; }
+note() { local m; m=$(printf "$2" "${@:3}"); echo "$1$O_PREFIX$m"; NOTES="$NOTES  - $m"$'\n'; }
 
 name_of() {
   local a
   a=$(lc "$1")
-  if [ "$a" = "$SAFE" ]; then echo "本 Safe（config）"
-  elif [ "$a" = $ZERO ]; then echo "零地址"
+  if [ "$a" = "$SAFE" ]; then echo "$N_SAFE"
+  elif [ "$a" = $ZERO ]; then echo "$N_ZERO"
   else printf '%s\n' "$ADDRESSES" | grep "^$a " | cut -d' ' -f2- || true
   fi
 }
@@ -89,12 +311,11 @@ name_of() {
 show_addr() {
   local ind=$1 label=$2 address=$3 name
   name=$(name_of "$address")
-  if [ -n "$name" ]; then echo "$ind$label$address  $name"; else echo "$ind$label$address"; warn "$ind" "不認識的地址 $address"; fi
+  if [ -n "$name" ]; then echo "$ind$label$address  $name"; else echo "$ind$label$address"; warn "$ind" "$W_UNKNOWN_ADDR" "$address"; fi
 }
 
 CLEAN='def clean: gsub("[\u0001-\u001f\u007f-\u009f\u00ad\u034f\u061c\u115f\u1160\u180e\u200b-\u200f\u2028-\u202e\u2060-\u206f\u3164\ufe00-\ufe0f\ufeff\uffa0\ufff9-\ufffb\udb40\udc00-\udb40\udc7f\udb40\udd00-\udb40\uddef]"; "\ufffd");'
-[ "$(jq -rn --arg v $'<\'x\xe2\x80\xae' "$CLEAN"'$v | clean | @html')" = $'&lt;&apos;x\xef\xbf\xbd' ] \
-  || die "這個版本的 jq 的 @html 或 gsub 和本程式預期的不同（需要 jq 1.7 以上）"
+[ "$(jq -rn --arg v $'<\'x\xe2\x80\xae' "$CLEAN"'$v | clean | @html')" = $'&lt;&apos;x\xef\xbf\xbd' ] || die "$E_JQ"
 group() { jq -nc --arg id "$1" --arg t "$2" "$CLEAN"'{id: ($id|clean), title: ($t|clean)}' >> "$ROWS"; }
 
 BYTES_SHOWN=32 TEXT_SHOWN=120
@@ -104,9 +325,9 @@ row() {
   v=$(jq -r .v <<<"$r")
   length=$(jq '.v | length' <<<"$r")
   if [[ $v =~ ^0x([0-9a-fA-F]{2})*$ ]] && [ ${#v} -gt $((2 + 2 * BYTES_SHOWN)) ]; then
-    s="$(( (${#v} - 2) / 2 )) bytes，keccak256 $(cast keccak "$v")"
+    s=$(printf "$F_BYTES" "$(( (${#v} - 2) / 2 ))" "$(cast keccak "$v")")
   elif [ "$length" -gt $TEXT_SHOWN ]; then
-    s="$length 字元，keccak256 $(cast keccak "$(cast from-utf8 -- "$v")")"
+    s=$(printf "$F_TEXT" "$length" "$(cast keccak "$(cast from-utf8 -- "$v")")")
   fi
   jq -c --arg s "$s" '.s = $s' <<<"$r" >> "$ROWS"
 }
@@ -114,30 +335,31 @@ row() {
 addr_row() {
   local name
   name=$(name_of "$3")
-  row "$1" "$2" "$(cast to-check-sum-address "$3")" "${name:-!! 不認識}"
+  row "$1" "$2" "$(cast to-check-sum-address "$3")" "${name:-$N_UNKNOWN}"
 }
 
 show_call() {
-  local ind=$1 to=$2 value=$3 op=$4 data=$5 top=${6:-} official="" id
+  local ind=$1 to=$2 value=$3 op=$4 data=$5 top=${6:-} official="" id title
   CALLS=$((CALLS + 1))
   id=C$CALLS
+  title=$(printf "$G_CALL" "$CALLS")
   printf '%s\n' "$MULTISENDS" | grep -q "^$(lc "$to") " && official=yes
-  echo "${ind}── 呼叫 #$CALLS"
-  group "$id" "呼叫 #$CALLS"
+  echo "${ind}── $title"
+  group "$id" "$title"
   addr_row "$id-to" to "$to"
-  row "$id-value" "value（wei）" "$value"
+  row "$id-value" "$K_VALUE" "$value"
   if [ "$op" = 0 ]; then row "$id-op" operation "0 CALL"; else row "$id-op" operation "1 DELEGATECALL"; fi
   show_addr "$ind   " "to:        " "$to"
-  echo "$ind   value:     $value wei（$(cast from-wei "$value") ETH）"
-  if [ "$value" != 0 ] && [ "$data" != 0x ]; then warn "$ind   " "呼叫 #$CALLS 附帶 $value wei"; fi
+  echo "$ind   $(printf "$T_VALUE" "$value" "$(cast from-wei "$value")")"
+  if [ "$value" != 0 ] && [ "$data" != 0x ]; then warn "$ind   " "$W_CALL_VALUE" "$CALLS" "$value"; fi
   if [ "$op" = 0 ]; then
     echo "$ind   operation: 0 CALL"
-    if [ -n "$official" ]; then warn "$ind   " "呼叫 #$CALLS 用 CALL 呼叫 MultiSend：裡面的呼叫由 MultiSend 合約發出，不是 Safe"; fi
+    if [ -n "$official" ]; then warn "$ind   " "$W_CALL_MULTISEND" "$CALLS"; fi
   elif [ -n "$top" ] && [ -n "$official" ]; then
-    echo "$ind   operation: 1 DELEGATECALL（官方 MultiSend）"
+    echo "$ind   $T_OFFICIAL"
   else
     echo "$ind   operation: 1 DELEGATECALL"
-    warn "$ind   " "呼叫 #$CALLS 是 DELEGATECALL（只有 Safe 最外層呼叫官方 MultiSend 時才正常）: $to"
+    warn "$ind   " "$W_DELEGATECALL" "$CALLS" "$to"
   fi
   if [ -n "$top" ] && [ -n "$official" ] && [ "$op" = 1 ]; then show_data "$ind   " "$data" "$id" safe-multisend
   else show_data "$ind   " "$data" "$id"
@@ -146,34 +368,34 @@ show_call() {
 
 show_data() {
   local ind=$1 data=$2 id=$3 multisend=${4:-} sig json line n=0 args=() reencoded extra addresses blobs b k=0 name calls=""
-  if [ "$data" = 0x ]; then echo "${ind}data:      無（只轉 ETH）"; row "$id-data" data 無; return; fi
+  if [ "$data" = 0x ]; then echo "${ind}$T_ETH_ONLY"; row "$id-data" data "$V_NONE"; return; fi
   sig=$(printf '%s' "$FUNCTIONS" | grep "^${data:0:10} " | cut -d' ' -f2- || true)
   if [ -z "$sig" ]; then
     echo "${ind}data:      $data"
-    row "$id-data" data "$data" "!! 未知函式"
-    warn "$ind" "呼叫 #$CALLS 裡有未知函式 selector ${data:0:10}（不在 known-functions.txt）"
+    row "$id-data" data "$data" "$N_UNKNOWN_FN"
+    warn "$ind" "$W_UNKNOWN_FN" "$CALLS" "${data:0:10}"
     return
   fi
-  echo "${ind}函式:      $sig   （cast sig = ${data:0:10}）"
+  echo "${ind}$(printf "$T_FN" "$sig" "${data:0:10}")"
   case ${sig%%(*} in
     addOwnerWithThreshold|removeOwner|swapOwner|changeThreshold|enableModule|disableModule|setGuard|setModuleGuard|setFallbackHandler|approveHash|execTransactionFromModule|setup)
-      warn "$ind" "Safe 管理函式 $sig" ;;
+      warn "$ind" "$W_ADMIN" "$sig" ;;
   esac
   if ! json=$(cast decode-calldata --json "$sig" "$data" 2>/dev/null); then
     echo "${ind}data:      $data"
-    row "$id-data" data "$data" "!! 無法依 $sig 解碼"
-    warn "$ind" "呼叫 #$CALLS 的資料無法依 $sig 解碼"
+    row "$id-data" data "$data" "$(printf "$N_UNDECODABLE" "$sig")"
+    warn "$ind" "$W_UNDECODABLE" "$CALLS" "$sig"
     return
   fi
-  row "$id-fn" 函式 "$sig ${data:0:10}"
+  row "$id-fn" "$K_FN" "$sig ${data:0:10}"
   while IFS= read -r line; do
     line=$(printf '%s' "$line" | sed -E "$HINT")
     n=$((n + 1))
-    echo "${ind}  引數 $n:  $line"
+    echo "${ind}$(printf "$T_ARG" "$n" "$line")"
     args+=("$line")
     name=""
-    if is_addr "$line"; then name=$(name_of "$line"); name=${name:-!! 不認識}; fi
-    row "$id-a$n" "引數 $n" "$line" "$name"
+    if is_addr "$line"; then name=$(name_of "$line"); name=${name:-$N_UNKNOWN}; fi
+    row "$id-a$n" "$(printf "$K_ARG" "$n")" "$line" "$name"
   done < <(cast decode-calldata "$sig" "$data")
 
   if [ $n -eq 0 ]; then reencoded=${data:0:10}
@@ -182,30 +404,30 @@ show_data() {
   reencoded=$(lc "$reencoded")
   extra=${data:${#reencoded}}
   if [ -z "$reencoded" ] || [ "${data:0:${#reencoded}}" != "$reencoded" ]; then
-    warn "$ind  " "呼叫 #$CALLS 的 $sig 資料不是標準 ABI 編碼（引數重新編碼後不同），上面的解碼可能不完整"
+    warn "$ind  " "$W_NOT_ABI" "$CALLS" "$sig"
   elif [ -n "$extra" ]; then
-    note "$ind  " "呼叫 #$CALLS 的資料在引數之後多出 $(( ${#extra} / 2 )) bytes: 0x$extra"
-    row "$id-extra" "引數後多出的 bytes" "0x$extra"
+    note "$ind  " "$O_EXTRA" "$CALLS" "$(( ${#extra} / 2 ))" "$extra"
+    row "$id-extra" "$K_EXTRA" "0x$extra"
   fi
 
   # Every string anywhere in the decoded arguments that is an address, or at least 4 bytes of hex.
   addresses=$(jq -r '[.data | .. | strings | select(test("^0x[0-9a-fA-F]{40}$")) | ascii_downcase] | unique | .[]' <<<"$json")
   blobs=$(jq -r '.data | .. | strings | select(test("^0x([0-9a-fA-F]{2}){4,}$")) | ascii_downcase' <<<"$json")
-  for b in $addresses; do show_addr "$ind  " "地址: " "$b"; done
+  for b in $addresses; do show_addr "$ind  " "$T_ADDR" "$b"; done
 
   case $sig in
     'multiSend(bytes)')
       # Only the Safe's own DELEGATECALL to an official MultiSend makes the packed calls the Safe's calls.
       if [ -n "$multisend" ]; then split_multisend "$ind" "$(jq -r '.data[0]' <<<"$json" | tr 'A-F' 'a-f')"
-      else warn "$ind  " "呼叫 #$CALLS 的 multiSend 不是 Safe 最外層對官方 MultiSend 的 DELEGATECALL，裡面的呼叫沒有拆開"
+      else warn "$ind  " "$W_NOT_SPLIT" "$CALLS"
       fi ;;
     'multicall((address,bytes,uint256,bool,bytes32)[])') b=$(jq -c '.data[0]' <<<"$json"); show_bundle "$ind  " "$b" "$id" ;;
     'morphoSupplyCollateral((address,address,address,address,uint256),uint256,address,bytes)')
       # Morpho calls Bundler3 back with this data, abi.encode(Call[]): a bundle that runs for the Safe.
       b=$(jq -r '.data[3]' <<<"$json")
       if [ "$b" != 0x ]; then
-        echo "$ind  Morpho 回呼的 bundle:"
-        group "$id.1" 內含的呼叫
+        echo "$ind  $T_CALLBACK"
+        group "$id.1" "$G_INNER"
         show_data "$ind    " "0x374f435d${b#0x}" "$id.1"
       fi ;;
     *)
@@ -218,12 +440,12 @@ show_data() {
       for b in $blobs; do
         if [ -z "$calls" ] && { [ ${#b} = 42 ] || [ ${#b} = 66 ]; }; then continue; fi  # an address or a bytes32 is shown as is, never decoded
         if printf '%s' "$FUNCTIONS" | grep -q "^${b:0:10} "; then
-          echo "$ind  內含的呼叫資料（bytes 引數）:"
+          echo "$ind  $T_INNER"
           k=$((k + 1))
-          group "$id.$k" 內含的呼叫
+          group "$id.$k" "$G_INNER"
           show_data "$ind    " "$b" "$id.$k"
         else
-          warn "$ind  " "呼叫 #$CALLS 有 $(( (${#b} - 2) / 2 )) bytes 的 bytes 引數無法解碼（${b:0:10}…），裡面可能有資料或呼叫沒顯示"
+          warn "$ind  " "$W_BYTES" "$CALLS" "$(( (${#b} - 2) / 2 ))" "${b:0:10}"
         fi
       done ;;
   esac
@@ -231,18 +453,19 @@ show_data() {
 
 # Bundler3 runs each Call(to, data, value, skipRevert, callbackHash) with the Safe as initiator.
 show_bundle() {
-  local ind=$1 bundle=$2 parent=$3 i=0 count data to value id
+  local ind=$1 bundle=$2 parent=$3 i=0 count data to value id title
   count=$(jq length <<<"$bundle")
   while [ $i -lt "$count" ]; do
     id=$parent.$((i + 1))
+    title=$(printf "$G_BUNDLE" "$((i + 1))" "$count")
     to=$(jq -r ".[$i][0]" <<<"$bundle")
     value=$(jq -r ".[$i][2]" <<<"$bundle")
-    echo "${ind}── Bundler3 呼叫 $((i + 1))/$count"
+    echo "${ind}── $title"
     show_addr "$ind   " "to:    " "$to"
     echo "$ind   value: $value wei"
-    group "$id" "Bundler3 呼叫 $((i + 1))/$count"
+    group "$id" "$title"
     addr_row "$id-to" to "$to"
-    row "$id-value" "value（wei）" "$value"
+    row "$id-value" "$K_VALUE" "$value"
     data=$(jq -r ".[$i][1]" <<<"$bundle" | tr 'A-F' 'a-f')
     show_data "$ind   " "$data" "$id"
     i=$((i + 1))
@@ -253,18 +476,18 @@ show_bundle() {
 # The offsets below count hex characters, two per byte: 2 + 40 + 64 + 64 = 170 before the data.
 split_multisend() {
   local ind=$1 rest=${2#0x} op to value len data
-  echo "${ind}MultiSend 拆開如下:"
+  echo "${ind}$T_SPLIT"
   while [ -n "$rest" ]; do
-    if [ ${#rest} -lt 170 ]; then warn "$ind" "MultiSend 尾端剩 $(( ${#rest} / 2 )) bytes，不足一筆呼叫"; return; fi
+    if [ ${#rest} -lt 170 ]; then warn "$ind" "$W_MS_LEFTOVER" "$(( ${#rest} / 2 ))"; return; fi
     op=${rest:0:2} to=0x${rest:2:40} len=${rest:106:64}
     value=$(cast to-dec "0x${rest:42:64}")
-    case $op in 00|01) ;; *) warn "$ind" "MultiSend 的 operation 是 0x${op}，不是 0 或 1"; return ;; esac
-    [[ ${len:0:56} =~ ^0+$ ]] || { warn "$ind" "MultiSend 的長度欄位大得不合理"; return; }
+    case $op in 00|01) ;; *) warn "$ind" "$W_MS_OP" "$op"; return ;; esac
+    [[ ${len:0:56} =~ ^0+$ ]] || { warn "$ind" "$W_MS_HUGE"; return; }
     len=$((16#${len:56} * 2))
     if [ ${#rest} -lt $((170 + len)) ]; then
-      warn "$ind" "MultiSend 的長度欄位說 $((len / 2)) bytes，但只剩 $(( (${#rest} - 170) / 2 )) bytes"; return
+      warn "$ind" "$W_MS_LENGTH" "$((len / 2))" "$(( (${#rest} - 170) / 2 ))"; return
     fi
-    if [ "$to" = $ZERO ]; then warn "$ind" "MultiSend 裡的 to 是零地址（1.5.0 的 MultiSend 會改成呼叫 Safe 自己）"; fi
+    if [ "$to" = $ZERO ]; then warn "$ind" "$W_MS_ZERO"; fi
     data=0x${rest:170:$len}
     show_call "$ind  " "$to" "$value" "$((op))" "$data"
     rest=${rest:$((170 + len))}
@@ -275,68 +498,67 @@ check_tx() {
   local tx=$1 count=$2 to value data op safe_tx_gas base_gas gas_price gas_token refund nonce encoded message hash service_hash
   WARNINGS="" NOTES="" CALLS=0
   : > "$ROWS"
-  to=$(jq -r '.to' <<<"$tx");                 is_addr "$to" || die "to 不是地址"
-  value=$(jq -r '.value' <<<"$tx");           is_uint "$value" || die "value 不是整數"
+  to=$(jq -r '.to' <<<"$tx");                 is_addr "$to" || die "$E_NOT_ADDR" to
+  value=$(jq -r '.value' <<<"$tx");           is_uint "$value" || die "$E_NOT_UINT" value
   data=$(lc "$(jq -r '.data // "0x"' <<<"$tx")")
-  [[ $data =~ ^0x([0-9a-f]{2})*$ ]] || die "data 不是十六進位 bytes"
-  op=$(jq -r '.operation' <<<"$tx");          [[ $op =~ ^[01]$ ]] || die "operation 必須是 0 或 1"
-  safe_tx_gas=$(jq -r '.safeTxGas' <<<"$tx"); is_uint "$safe_tx_gas" || die "safeTxGas 不是整數"
-  base_gas=$(jq -r '.baseGas' <<<"$tx");      is_uint "$base_gas" || die "baseGas 不是整數"
-  gas_price=$(jq -r '.gasPrice' <<<"$tx");    is_uint "$gas_price" || die "gasPrice 不是整數"
-  gas_token=$(jq -r '.gasToken' <<<"$tx");    is_addr "$gas_token" || die "gasToken 不是地址"
-  refund=$(jq -r '.refundReceiver' <<<"$tx"); is_addr "$refund" || die "refundReceiver 不是地址"
-  nonce=$(jq -r '.nonce' <<<"$tx");           is_uint "$nonce" || die "nonce 不是整數"
-  [ "$(lc "$(jq -r '.safe // empty' <<<"$tx")")" = "$SAFE" ] || die "這筆交易的 safe 不是 config 的 SAFE"
+  [[ $data =~ ^0x([0-9a-f]{2})*$ ]] || die "$E_DATA"
+  op=$(jq -r '.operation' <<<"$tx");          [[ $op =~ ^[01]$ ]] || die "$E_OP"
+  safe_tx_gas=$(jq -r '.safeTxGas' <<<"$tx"); is_uint "$safe_tx_gas" || die "$E_NOT_UINT" safeTxGas
+  base_gas=$(jq -r '.baseGas' <<<"$tx");      is_uint "$base_gas" || die "$E_NOT_UINT" baseGas
+  gas_price=$(jq -r '.gasPrice' <<<"$tx");    is_uint "$gas_price" || die "$E_NOT_UINT" gasPrice
+  gas_token=$(jq -r '.gasToken' <<<"$tx");    is_addr "$gas_token" || die "$E_NOT_ADDR" gasToken
+  refund=$(jq -r '.refundReceiver' <<<"$tx"); is_addr "$refund" || die "$E_NOT_ADDR" refundReceiver
+  nonce=$(jq -r '.nonce' <<<"$tx");           is_uint "$nonce" || die "$E_NOT_UINT" nonce
+  [ "$(lc "$(jq -r '.safe // empty' <<<"$tx")")" = "$SAFE" ] || die "$E_TX_SAFE"
 
   encoded=$(cast abi-encode 'f(bytes32,address,uint256,bytes32,uint8,uint256,uint256,uint256,address,address,uint256)' \
     "$SAFE_TX_TYPEHASH" "$to" "$value" "$(cast keccak "$data")" "$op" \
-    "$safe_tx_gas" "$base_gas" "$gas_price" "$gas_token" "$refund" "$nonce") || die "無法編碼這筆交易的欄位（數字太大？）"
+    "$safe_tx_gas" "$base_gas" "$gas_price" "$gas_token" "$refund" "$nonce") || die "$E_ENCODE"
   message=$(cast keccak "$encoded")
   hash=$(cast keccak "0x1901${DOMAIN_SEPARATOR#0x}${message#0x}")
-  group tx 交易
-  row tx-safeTxHash safeTxHash "$hash" 和硬體錢包比對
-  row tx-domain "domain hash" "$DOMAIN_SEPARATOR" 和硬體錢包比對
-  row tx-message "message hash" "$message" 和硬體錢包比對
+  group tx "$G_TX"
+  row tx-safeTxHash safeTxHash "$hash" "$N_WALLET"
+  row tx-domain "domain hash" "$DOMAIN_SEPARATOR" "$N_WALLET"
+  row tx-message "message hash" "$message" "$N_WALLET"
   row tx-nonce nonce "$nonce"
 
   {
-  echo "================ Safe 交易 nonce $nonce ================"
+  printf "$T_HEAD\n" "$nonce"
   show_addr "" "Safe:           " "$SAFE"
-  echo "Safe 版本:      ${SAFE_VERSION}（${CONFIG}）"
-  echo "地址清單:       $KNOWN"
+  printf "$T_VERSION\n" "$SAFE_VERSION" "$CONFIG"
+  printf "$T_KNOWN\n" "$KNOWN"
   echo "nonce:          $nonce"
   echo "safeTxGas:      $safe_tx_gas"
   echo "baseGas:        $base_gas"
   echo "gasPrice:       $gas_price"
   show_addr "" "gasToken:       " "$gas_token"
   show_addr "" "refundReceiver: " "$refund"
-  if [ "$safe_tx_gas" != 0 ] || [ "$base_gas" != 0 ] || [ "$gas_price" != 0 ]; then
-    warn "" "safeTxGas、baseGas 或 gasPrice 不是 0（可能從 Safe 付款給執行者）"
-  fi
-  if [ "$(lc "$gas_token")" != $ZERO ] || [ "$(lc "$refund")" != $ZERO ]; then warn "" "gasToken 或 refundReceiver 不是零地址"; fi
-  if [ "$count" != 1 ]; then warn "" "這個 nonce 有 $count 筆不同的交易，每筆都列出；只簽 safeTxHash 和錢包顯示相同的那一筆"; fi
+  if [ "$safe_tx_gas" != 0 ] || [ "$base_gas" != 0 ] || [ "$gas_price" != 0 ]; then warn "" "$W_GAS"; fi
+  if [ "$(lc "$gas_token")" != $ZERO ] || [ "$(lc "$refund")" != $ZERO ]; then warn "" "$W_REFUND"; fi
+  if [ "$count" != 1 ]; then warn "" "$W_SAME_NONCE" "$count"; fi
 
   echo
   echo "domain separator: $DOMAIN_SEPARATOR"
   echo "message hash:     $message"
   echo "safeTxHash:       $hash"
   service_hash=$(lc "$(jq -r '.safeTxHash // empty' <<<"$tx")")
-  if [ -n "$service_hash" ] && ! [[ $service_hash =~ ^0x[0-9a-f]{64}$ ]]; then warn "" "服務給的 safeTxHash 格式不對（不顯示）"
-  elif [ -n "$service_hash" ] && [ "$service_hash" != "$hash" ]; then warn "" "服務給的 safeTxHash $service_hash 和本機算的不同"
+  if [ -n "$service_hash" ] && ! [[ $service_hash =~ ^0x[0-9a-f]{64}$ ]]; then warn "" "$W_HASH_FORMAT"
+  elif [ -n "$service_hash" ] && [ "$service_hash" != "$hash" ]; then warn "" "$W_HASH_DIFFERS" "$service_hash"
   fi
 
   echo
-  echo "呼叫內容（to、value、operation 和 data 本機解碼，不用服務的 dataDecoded）:"
+  echo "$T_CALLS"
   show_call "" "$to" "$value" "$op" "$data" top
   } > "$WORK/log"
-  group end 總計
-  row end-count "Safe 發出的呼叫數" "$CALLS"
+  group end "$G_END"
+  row end-count "$K_COUNT" "$CALLS"
 
-  echo "================ 摘要 nonce $nonce ================"
-  echo "safeTxHash（和錢包顯示的比對）: $hash"
-  echo "Safe 發出的呼叫數: $CALLS"
-  if [ -n "$NOTES" ]; then printf '注意:\n%s' "$NOTES"; fi
-  if [ -z "$WARNINGS" ]; then echo "沒有警告"; else echo "!! 警告:"; printf '%s' "$WARNINGS" | awk '!seen[$0]++'; fi  # each warning once
+  printf "$T_SUMMARY\n" "$nonce"
+  echo "$T_LANGUAGE"
+  printf "$T_HASH\n" "$hash"
+  echo "$K_COUNT: $CALLS"
+  if [ -n "$NOTES" ]; then printf '%s\n%s' "$T_NOTES" "$NOTES"; fi
+  if [ -z "$WARNINGS" ]; then echo "$T_NO_WARNINGS"; else echo "$T_WARNINGS"; printf '%s' "$WARNINGS" | awk '!seen[$0]++'; fi  # each warning once
   echo
   jq -nc --arg nonce "$nonce" --arg hash "$hash" --arg warnings "$WARNINGS" --arg notes "$NOTES" \
     --rawfile log "$WORK/log" --slurpfile rows "$ROWS" "$CLEAN"'
@@ -349,8 +571,14 @@ page() {
   nonce=$(jq -rs '.[0].nonce' "$WORK/txs")
   mkdir -p "$OUT"
   file=$OUT/nonce-$nonce.html
-  jq -rs --arg csp "$CSP" --arg css "$PAGE_CSS" --arg symbols "$PAGE_SYMBOLS" --arg config "$CONFIG" --arg known "$KNOWN" "$CLEAN"'
-    def icon($s): "<svg class=\"i \($s)\" role=\"img\" aria-label=\"\({ok: "通過", warn: "警告", na: "注意"}[$s])\"><use href=\"#\($s)\"/></svg>";
+  jq -rs --arg csp "$CSP" --arg css "$PAGE_CSS" --arg symbols "$PAGE_SYMBOLS" --arg config "$CONFIG" --arg known "$KNOWN" \
+    --arg lang "$P_LANG" --arg pass "$P_PASS" --arg warn "$P_WARN" --arg note "$P_NOTE" --arg prog "$P_PROG" --arg sub "$P_SUB" \
+    --arg many "$P_MANY" --arg checklist "$P_CHECKLIST" --arg nth "$P_NTH" --arg has_warnings "$P_HAS_WARNINGS" \
+    --arg no_warnings "$T_NO_WARNINGS" --arg lead "$P_LEAD" --arg language "$P_LANGUAGE" --arg warnings "$P_WARNINGS" \
+    --arg notes "$P_NOTES" --arg notes_lead "$P_NOTES_LEAD" --arg log "$P_LOG" --arg log_lead "$P_LOG_LEAD" --arg long "$P_LONG" \
+    --arg footer "$P_FOOTER" "$CLEAN"'
+    def f($xs): [split("%s"), $xs] | transpose | map((.[0] // "") + (.[1] // "" | tostring)) | join("");
+    def icon($s): "<svg class=\"i \($s)\" role=\"img\" aria-label=\"\({ok: $pass, warn: $warn, na: $note}[$s])\"><use href=\"#\($s)\"/></svg>";
     def line:
       if has("title") then "<div class=\"g\"><span class=\"id\">\(.id | @html)</span><span>\(.title | @html)</span></div>"
       else "<div class=\"r\"><span class=\"id\">\(.id | @html)</span><span class=\"k\">\(.k | @html)</span><span class=\"v\">"
@@ -358,18 +586,18 @@ page() {
         + "</span><span class=\"nm\">\(.n | @html)</span></div>"
       end;
     def logline:
-      if length > 160 then "<div><details><summary>\(.[0:100] | @html)…（\(length) 字元）</summary>\(@html)</details></div>"
+      if length > 160 then length as $l | "<div><details><summary>\(.[0:100] | @html)…\($long | f([$l]))</summary>\(@html)</details></div>"
       else "<div>\(@html)</div>" end;
     def items($state): map("\n    <div class=\"row\">\(icon($state))<div class=\"t\">\(@html)</div></div>") | join("");
     length as $n | .[0].nonce as $nonce |
     "<!doctype html>
-<html lang=\"zh-Hant\">
+<html lang=\"\($lang)\">
 <head>
 <meta charset=\"utf-8\">
 <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">
 <meta name=\"color-scheme\" content=\"dark\">
 <meta http-equiv=\"Content-Security-Policy\" content=\"\($csp)\">
-<title>獨立檢查 check.sh · nonce \($nonce | @html)</title>
+<title>\($prog) · nonce \($nonce | @html)</title>
 <style>
 \($css)
 </style>
@@ -380,16 +608,17 @@ page() {
 <div class=\"main solo\">
 <header>
   <div class=\"who\">
-    <h1><span class=\"prog\">獨立檢查 check.sh</span> · nonce \($nonce | @html)</h1>
-    <p class=\"sub\">獨立電腦上的 check.sh 只解碼這筆交易，不判斷它對不對。</p>
+    <h1><span class=\"prog\">\($prog)</span> · nonce \($nonce | @html)</h1>
+    <p class=\"sub\">\($sub)</p>
   </div>\(if $n > 1 then "
-  <span class=\"opid\">\($n) 筆不同的交易：只簽 safeTxHash 和硬體錢包相同的那一筆</span>" else "" end)
+  <span class=\"opid\">\($many | f([$n]))</span>" else "" end)
 </header>
 " + ([to_entries[] | .key as $i | .value |
 "<section>
-  <h2>比對清單\(if $n > 1 then "（第 \($i + 1)/\($n) 筆）" else "" end)</h2>
-  <div class=\"banner \(if (.warnings | length) > 0 then "warn" else "ok" end)\">\(if (.warnings | length) > 0 then icon("warn") + "有 \(.warnings | length) 個警告，看過再簽" else icon("ok") + "沒有警告" end)</div>
-  <p class=\"lead\">每一列和 kiss-sign verify 頁面的同一列比對：列號、欄位和值都要一模一樣。最右一欄是各自的名字，不用比。safeTxHash、domain hash 和 message hash 也要和硬體錢包逐字比對。</p>
+  <h2>\($checklist)\(if $n > 1 then $nth | f([$i + 1, $n]) else "" end)</h2>
+  <div class=\"banner \(if (.warnings | length) > 0 then "warn" else "ok" end)\">\(if (.warnings | length) > 0 then (.warnings | length) as $w | icon("warn") + ($has_warnings | f([$w])) else icon("ok") + $no_warnings end)</div>
+  <p class=\"lead\">\($lead)</p>
+  <p class=\"lead\">\($language)</p>
 <!-- 比對清單 -->
 <div class=\"cl\">
 " + (.rows | map(line) | join("\n")) + "
@@ -397,31 +626,31 @@ page() {
 <!-- /比對清單 -->
 </section>
 <section>
-  <h2>警告 <span class=\"c\">\(.warnings | length)</span></h2>
+  <h2>\($warnings) <span class=\"c\">\(.warnings | length)</span></h2>
   <div class=\"rows\">\(.warnings | items("warn"))
   </div>
 </section>
 <section>
-  <h2>注意 <span class=\"c\">\(.notes | length)</span></h2>
-  <p class=\"lead\">解碼看到的事實，不是警告。check.sh 不判斷它們。</p>
+  <h2>\($notes) <span class=\"c\">\(.notes | length)</span></h2>
+  <p class=\"lead\">\($notes_lead)</p>
   <div class=\"rows\">\(.notes | items("na"))
   </div>
 </section>
 <section>
-  <h2>完整解碼</h2>
-  <p class=\"lead\">check.sh 自己解出的全部內容，含每個地址的名字。很長的值收起來，點開看全文。</p>
+  <h2>\($log)</h2>
+  <p class=\"lead\">\($log_lead)</p>
   <div class=\"log\">
 " + (.log | map(logline) | join("\n")) + "
   </div>
 </section>
-"] | join("")) + "<footer class=\"foot\">這頁由 check.sh 寫出，只用 cast、curl、jq，不含 AI 文字。設定：<code>\($config | clean | @html)</code>，地址清單：<code>\($known | clean | @html)</code>。</footer>
+"] | join("")) + "<footer class=\"foot\">\($footer | f(["<code>\($config | clean | @html)</code>", "<code>\($known | clean | @html)</code>"]))</footer>
 </div>
 </div>
 </body>
 </html>"' "$WORK/txs" > "$WORK/page"
   mv "$WORK/page" "$file"
-  echo "獨立檢查 check.sh 的頁面，nonce ${nonce}（完整解碼和比對清單）: $file"
-  printf '打開: open %q\n' "$file"
+  printf "$T_PAGE\n" "$nonce" "$file"
+  printf "$T_OPEN" "$file"
 }
 
 main() {
@@ -430,17 +659,16 @@ main() {
     txs=$(jq -c 'if has("results") then .results else [.] end' "$2")
   elif [ $# -eq 1 ] && is_uint "$1"; then
     url="https://api.safe.global/tx-service/eth/api/v2/safes/$(cast to-check-sum-address "$SAFE")/multisig-transactions/?nonce=$1"
-    response=$(curl -fsS --max-time 30 "$url") || die "無法從 Safe Transaction Service 取得交易"
+    response=$(curl -fsS --max-time 30 "$url") || die "$E_FETCH"
     txs=$(jq -c '.results' <<<"$response")
-    [ "$(jq -r '.next' <<<"$response")" = null ] || die "服務回傳超過一頁，這個 nonce 的交易太多"
-    [ "$(jq --arg n "$1" '[.[] | select(.nonce | tostring != $n)] | length' <<<"$txs")" = 0 ] \
-      || die "服務回傳了別的 nonce 的交易"
+    [ "$(jq -r '.next' <<<"$response")" = null ] || die "$E_PAGES"
+    [ "$(jq --arg n "$1" '[.[] | select(.nonce | tostring != $n)] | length' <<<"$txs")" = 0 ] || die "$E_OTHER_NONCE"
   else
-    die "用法: ./check.sh <nonce> 或 ./check.sh --file <tx.json>"
+    die "$E_USAGE"
   fi
   count=$(jq length <<<"$txs")
-  [ "$count" -gt 0 ] || die "這個 nonce 沒有交易"
-  is_uint "$(jq -r '.[0].nonce' <<<"$txs")" || die "nonce 不是整數"
+  [ "$count" -gt 0 ] || die "$E_NO_TX"
+  is_uint "$(jq -r '.[0].nonce' <<<"$txs")" || die "$E_NOT_UINT" nonce
   rm -f "$OUT/nonce-$(jq -r '.[0].nonce' <<<"$txs").html"  # a page from an earlier run must not outlive a run that stops
   WORK=$(mktemp -d)
   trap 'rm -rf "$WORK"' EXIT
