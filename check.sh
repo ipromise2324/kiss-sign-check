@@ -2,6 +2,7 @@
 # Shows exactly what a Safe transaction does, using only cast, curl and jq.
 #   ./check.sh <nonce>          fetch the transaction(s) at this nonce from the Safe Transaction Service
 #   ./check.sh --file <tx.json> read one transaction, or a page of them, in the service's JSON shape
+# Each called contract's ABI comes from Sourcify; CHECK_SOURCIFY_DIR names a directory of recorded answers instead.
 # The terminal gets a summary; the full decode and the 比對清單 go to out/nonce-<nonce>.html.
 set -euo pipefail
 
@@ -9,6 +10,7 @@ DIR=$(cd "$(dirname "$0")" && pwd)
 CONFIG=${CHECK_CONFIG:-$DIR/config}
 KNOWN=${CHECK_KNOWN:-$DIR/known-addresses.txt}
 LAYOUTS_FILE=${CHECK_LAYOUTS:-$DIR/known-layouts.txt}
+SOURCIFY=https://sourcify.dev/server/v2/contract/1
 OUT=${CHECK_OUT:-$DIR/out}
 ZERO=0x0000000000000000000000000000000000000000
 
@@ -48,11 +50,9 @@ case $WORDS in
     E_VERSION='unsupported SAFE_VERSION (supported: 1.1.0, 1.1.1, 1.2.0, 1.3.0, 1.4.0, 1.4.1, 1.5.0)'
     E_KNOWN_LINE='this line of known-addresses.txt is malformed: %s %s'
     E_DUP_ADDR='the same address appears twice: %s'
-    E_DUP_FN='two functions in known-functions.txt share a selector: %s'
     E_ASCII='%s line %s holds a character that is not printable ASCII'
     E_LAYOUTS='%s not found'
     E_LAYOUT_LINE='known-layouts.txt line %s is malformed: %s'
-    E_LAYOUT_FN='known-layouts.txt line %s names %s, which is not in known-functions.txt'
     E_LAYOUT_CALLS='known-layouts.txt line %s names %s, whose bytes check.sh already decodes as calls'
     E_LAYOUT_DUP='known-layouts.txt gives %s twice, or gives it both a commands layout and another'
     E_LAYOUT_TABLE='known-layouts.txt names the table %s, which has no rows'
@@ -68,12 +68,16 @@ case $WORDS in
     E_OTHER_NONCE='the service returned transactions of another nonce'
     E_USAGE='usage: ./check.sh <nonce> or ./check.sh --file <tx.json>'
     E_NO_TX='no transaction at this nonce'
+    E_SOURCIFY="cannot fetch %s's ABI from Sourcify (HTTP status %s)"
+    E_RECORDED='no recorded Sourcify answer for %s in %s'
     W_PREFIX='!! Warning: '
     W_UNKNOWN_ADDR='unknown address %s'
     W_CALL_VALUE='call #%s sends %s wei'
     W_CALL_MULTISEND='call #%s CALLs a MultiSend: its calls are made by the MultiSend contract, not the Safe'
     W_DELEGATECALL="call #%s is a DELEGATECALL (normal only for the Safe's own call into an official MultiSend): %s"
-    W_UNKNOWN_FN='call #%s has an unknown function selector %s (not in known-functions.txt)'
+    W_UNKNOWN_FN="call #%s has a function selector %s that is not in the ABI Sourcify gives for %s"
+    W_UNVERIFIED='call #%s goes to %s, which is not verified on Sourcify; its data is shown raw'
+    W_IMPL_UNVERIFIED="call #%s goes to the proxy %s, whose implementation %s is not verified on Sourcify; its data is shown raw"
     W_ADMIN='Safe admin function %s'
     W_UNDECODABLE="call #%s's data cannot be decoded as %s"
     W_NOT_ABI="call #%s's %s data is not standard ABI encoding (its arguments encode back differently); the decode above may be incomplete"
@@ -101,6 +105,7 @@ case $WORDS in
     W_HASH_DIFFERS="the service's safeTxHash %s differs from the one computed here"
     O_PREFIX='Note: '
     O_EXTRA="call #%s's data has %s bytes after the arguments: 0x%s"
+    O_PROXY='%s is a proxy: its calls are decoded with the ABI of %s, the implementation Sourcify reports'
     T_ETH_ONLY='data:      none (ETH only)'
     T_VALUE='value:     %s wei (%s ETH)'
     T_OFFICIAL='operation: 1 DELEGATECALL (official MultiSend)'
@@ -118,6 +123,7 @@ case $WORDS in
     T_VERSION='Safe version:   %s (%s)'
     T_KNOWN='address list:   %s'
     T_LAYOUTS='layout list:    %s'
+    T_ABIS='ABIs from:      %s'
     T_CALLS="Calls (to, value, operation and data decoded here, not from the service's dataDecoded):"
     T_SUMMARY='================ Summary nonce %s ================'
     T_LANGUAGE='Language: English (LANGUAGE=en)'
@@ -176,11 +182,9 @@ case $WORDS in
     E_VERSION='不支援的 SAFE_VERSION（支援 1.1.0、1.1.1、1.2.0、1.3.0、1.4.0、1.4.1、1.5.0）'
     E_KNOWN_LINE='known-addresses.txt 這行格式不對: %s %s'
     E_DUP_ADDR='同一個地址出現兩次: %s'
-    E_DUP_FN='known-functions.txt 有兩個函式的 selector 相同: %s'
     E_ASCII='%s 第 %s 行有可列印 ASCII 以外的字元'
     E_LAYOUTS='找不到 %s'
     E_LAYOUT_LINE='known-layouts.txt 第 %s 行格式不對: %s'
-    E_LAYOUT_FN='known-layouts.txt 第 %s 行的 %s 不在 known-functions.txt'
     E_LAYOUT_CALLS='known-layouts.txt 第 %s 行的 %s，它的 bytes check.sh 已經當成呼叫解碼'
     E_LAYOUT_DUP='known-layouts.txt 給了 %s 兩次，或同時給了 commands 和別的 layout'
     E_LAYOUT_TABLE='known-layouts.txt 用到的表 %s 沒有任何一列'
@@ -196,12 +200,16 @@ case $WORDS in
     E_OTHER_NONCE='服務回傳了別的 nonce 的交易'
     E_USAGE='用法: ./check.sh <nonce> 或 ./check.sh --file <tx.json>'
     E_NO_TX='這個 nonce 沒有交易'
+    E_SOURCIFY='無法從 Sourcify 取得 %s 的 ABI（HTTP 狀態 %s）'
+    E_RECORDED='%s 沒有錄好的 Sourcify 回答（%s）'
     W_PREFIX='!! 警告: '
     W_UNKNOWN_ADDR='不認識的地址 %s'
     W_CALL_VALUE='呼叫 #%s 附帶 %s wei'
     W_CALL_MULTISEND='呼叫 #%s 用 CALL 呼叫 MultiSend：裡面的呼叫由 MultiSend 合約發出，不是 Safe'
     W_DELEGATECALL='呼叫 #%s 是 DELEGATECALL（只有 Safe 最外層呼叫官方 MultiSend 時才正常）: %s'
-    W_UNKNOWN_FN='呼叫 #%s 裡有未知函式 selector %s（不在 known-functions.txt）'
+    W_UNKNOWN_FN='呼叫 #%s 裡有未知函式 selector %s（不在 Sourcify 給 %s 的 ABI）'
+    W_UNVERIFIED='呼叫 #%s 的對象 %s 沒有在 Sourcify 驗證，資料只顯示原始 hex'
+    W_IMPL_UNVERIFIED='呼叫 #%s 的對象是 proxy %s，它的 implementation %s 沒有在 Sourcify 驗證，資料只顯示原始 hex'
     W_ADMIN='Safe 管理函式 %s'
     W_UNDECODABLE='呼叫 #%s 的資料無法依 %s 解碼'
     W_NOT_ABI='呼叫 #%s 的 %s 資料不是標準 ABI 編碼（引數重新編碼後不同），上面的解碼可能不完整'
@@ -229,6 +237,7 @@ case $WORDS in
     W_HASH_DIFFERS='服務給的 safeTxHash %s 和本機算的不同'
     O_PREFIX='注意: '
     O_EXTRA='呼叫 #%s 的資料在引數之後多出 %s bytes: 0x%s'
+    O_PROXY='%s 是 proxy：它的呼叫依 %s 的 ABI 解碼，這是 Sourcify 回報的 implementation'
     T_ETH_ONLY='data:      無（只轉 ETH）'
     T_VALUE='value:     %s wei（%s ETH）'
     T_OFFICIAL='operation: 1 DELEGATECALL（官方 MultiSend）'
@@ -246,6 +255,7 @@ case $WORDS in
     T_VERSION='Safe 版本:      %s（%s）'
     T_KNOWN='地址清單:       %s'
     T_LAYOUTS='layout 清單:    %s'
+    T_ABIS='ABI 來源:       %s'
     T_CALLS='呼叫內容（to、value、operation 和 data 本機解碼，不用服務的 dataDecoded）:'
     T_SUMMARY='================ 摘要 nonce %s ================'
     T_LANGUAGE='語言: 繁體中文（LANGUAGE=zh-TW）'
@@ -335,18 +345,11 @@ done < "$KNOWN"
 dup=$(printf '%s\n' "$ADDRESSES" | cut -d' ' -f1 | sort | uniq -d)
 [ -z "$dup" ] || die "$E_DUP_ADDR" "$dup"
 
-for f in "$DIR/known-functions.txt" "$LAYOUTS_FILE"; do
-  bad=$(LC_ALL=C grep -n '[^ -~]' "$f" | head -1 | cut -d: -f1) || true
-  [ -z "$bad" ] || die "$E_ASCII" "$f" "$bad"
-done
+[ -f "$LAYOUTS_FILE" ] || die "$E_LAYOUTS" "$LAYOUTS_FILE"
+bad=$(LC_ALL=C grep -n '[^ -~]' "$LAYOUTS_FILE" | head -1 | cut -d: -f1) || true
+[ -z "$bad" ] || die "$E_ASCII" "$LAYOUTS_FILE" "$bad"
 
-FUNCTIONS=""
-while read -r sig; do
-  case $sig in ''|'#'*) continue ;; esac
-  FUNCTIONS="$FUNCTIONS$(cast sig "$sig") $sig"$'\n'
-done < "$DIR/known-functions.txt"
-dup=$(printf '%s' "$FUNCTIONS" | cut -d' ' -f1 | sort | uniq -d)
-[ -z "$dup" ] || die "$E_DUP_FN" "$dup"
+SIGNATURE='^[A-Za-z_$][A-Za-z0-9_$]*[(][][a-z0-9,()]*[)]$'
 
 # A function's top-level argument types, one per line.
 arg_types() {
@@ -393,7 +396,6 @@ layout_ok() {
 }
 
 # known-layouts.txt, as lines "F <function> <argument> <kind> <spec>" and "T <table> <byte> <NAME> <kind> <spec>".
-[ -f "$LAYOUTS_FILE" ] || die "$E_LAYOUTS" "$LAYOUTS_FILE"
 LAYOUTS="" KEYS="" n=0
 while IFS= read -r line; do
   n=$((n + 1))
@@ -405,9 +407,8 @@ while IFS= read -r line; do
     LAYOUTS="${LAYOUTS}T ${w[0]%:} ${w[*]:1}"$'\n'
     continue
   fi
-  [ ${#w[@]} -ge 3 ] && layout_ok "${w[@]:2}" || die "$E_LAYOUT_LINE" "$n" "$line"
+  [ ${#w[@]} -ge 3 ] && [[ ${w[0]} =~ $SIGNATURE ]] && layout_ok "${w[@]:2}" || die "$E_LAYOUT_LINE" "$n" "$line"
   sig=${w[0]} arg=${w[1]}
-  printf '%s' "$FUNCTIONS" | cut -d' ' -f2- | grep -qxF -- "$sig" || die "$E_LAYOUT_FN" "$n" "$sig"
   case $sig in
     'multiSend(bytes)'|'multicall((address,bytes,uint256,bool,bytes32)[])'|'morphoSupplyCollateral((address,address,address,address,uint256),uint256,address,bytes)'|'multicall(bytes[])'|'submit(bytes)'|'revoke(bytes)')
       die "$E_LAYOUT_CALLS" "$n" "$sig" ;;
@@ -449,6 +450,61 @@ show_addr() {
   local ind=$1 label=$2 address=$3 name
   name=$(name_of "$address")
   if [ -n "$name" ]; then echo "$ind$label$address  $name"; else echo "$ind$label$address"; warn "$ind" "$W_UNKNOWN_ADDR" "$address"; fi
+}
+
+# Sourcify's answer about the contract $1 into $WORK/answer, and its HTTP status into STATUS: 200, or 404 when
+# Sourcify has not verified it. CHECK_SOURCIFY_DIR reads <address>.<status>.json files instead; CHECK_SOURCIFY_SAVE writes them.
+sourcify() {
+  local s
+  STATUS=""
+  if [ -n "${CHECK_SOURCIFY_DIR:-}" ]; then
+    for s in 200 404; do
+      if [ -f "$CHECK_SOURCIFY_DIR/$1.$s.json" ]; then STATUS=$s; cp "$CHECK_SOURCIFY_DIR/$1.$s.json" "$WORK/answer"; break; fi
+    done
+    [ -n "$STATUS" ] || die "$E_RECORDED" "$1" "$CHECK_SOURCIFY_DIR"
+  else
+    STATUS=$(curl -sS --max-time 30 -o "$WORK/answer" -w '%{http_code}' "$SOURCIFY/$1?fields=abi,proxyResolution") || die "$E_SOURCIFY" "$1" "$STATUS"
+    if [ -n "${CHECK_SOURCIFY_SAVE:-}" ]; then cp "$WORK/answer" "$CHECK_SOURCIFY_SAVE/$1.$STATUS.json"; fi
+  fi
+  [ "$STATUS" = 404 ] || { [ "$STATUS" = 200 ] && jq -e '.abi | type == "array"' "$WORK/answer" > /dev/null; } || die "$E_SOURCIFY" "$1" "$STATUS"
+}
+
+# Each function in the ABI of $WORK/answer, the contract $1's, as "<selector> $1 <signature>"; cast computes the selector.
+# A function with a name or type that is not canonical Solidity ABI is left out, so a row never shows another spelling.
+functions_in() {
+  local sig selector
+  jq -r 'def t: if .type | test("^tuple(\\[[0-9]*\\])*$") then "(" + (.components | map(t) | join(",")) + ")" + (.type | ltrimstr("tuple"))
+      elif .type | test("^(address|bool|string|bytes([1-9]|[12][0-9]|3[0-2])?|u?int(8|16|24|32|40|48|56|64|72|80|88|96|104|112|120|128|136|144|152|160|168|176|184|192|200|208|216|224|232|240|248|256))(\\[[0-9]*\\])*$") then .type
+      else error end;
+    .abi[] | select(.type? == "function") | select(.name | strings | test("^[A-Za-z_$][A-Za-z0-9_$]*$")) | try "\(.name)(\(.inputs | map(t) | join(",")))"' "$WORK/answer" \
+  | while read -r sig; do
+      if [[ $sig =~ $SIGNATURE ]] && selector=$(cast sig "$sig" 2>/dev/null); then echo "$selector $1 $sig"; fi
+    done
+}
+
+# The functions of the contract $1 into $WORK/abi/<address>: its own ABI's first, then those of each implementation
+# Sourcify reports for it as a proxy. A contract Sourcify has not verified gets the file <address>.none instead, and an
+# implementation it has not verified is listed in <address>.unverified.
+load_abi() {
+  local file=$WORK/abi/$1 i
+  if [ -f "$file" ] || [ -f "$file.none" ]; then return; fi
+  sourcify "$1"
+  if [ "$STATUS" = 404 ]; then : > "$file.none"; return; fi
+  functions_in "$1" > "$file"
+  : > "$file.unverified"
+  for i in $(jq -r '.proxyResolution.implementations[]?.address? | strings | ascii_downcase' "$WORK/answer"); do
+    is_addr "$i" || continue
+    sourcify "$i"
+    if [ "$STATUS" = 200 ]; then functions_in "$i" >> "$file"; else echo "$i" >> "$file.unverified"; fi
+  done
+}
+
+# SIG: the function of the contract $1 whose selector starts the data $2, or empty; FROM: the contract whose ABI has it.
+lookup() {
+  local line=""
+  load_abi "$1"
+  if [ -f "$WORK/abi/$1" ]; then line=$(grep -m1 "^${2:0:10} " "$WORK/abi/$1") || true; fi
+  read -r _ FROM SIG <<<"$line" || true
 }
 
 CLEAN='def clean: gsub("[\u0001-\u001f\u007f-\u009f\u00ad\u034f\u061c\u115f\u1160\u180e\u200b-\u200f\u2028-\u202e\u2060-\u206f\u3164\ufe00-\ufe0f\ufeff\uffa0\ufff9-\ufffb\udb40\udc00-\udb40\udc7f\udb40\udd00-\udb40\uddef]"; "\ufffd");'
@@ -498,22 +554,30 @@ show_call() {
     echo "$ind   operation: 1 DELEGATECALL"
     warn "$ind   " "$W_DELEGATECALL" "$CALLS" "$to"
   fi
-  if [ -n "$top" ] && [ -n "$official" ] && [ "$op" = 1 ]; then show_data "$ind   " "$data" "$id" safe-multisend
-  else show_data "$ind   " "$data" "$id"
+  if [ -n "$top" ] && [ -n "$official" ] && [ "$op" = 1 ]; then show_data "$ind   " "$data" "$id" "$(lc "$to")" safe-multisend
+  else show_data "$ind   " "$data" "$id" "$(lc "$to")"
   fi
 }
 
+# Decodes the data $2 of a call to the contract $3 with the ABI Sourcify gives for it. $5 is set for the Safe's own
+# DELEGATECALL to an official MultiSend, and $6 is the Bundler3 a bundle call runs from.
 show_data() {
-  local ind=$1 data=$2 id=$3 multisend=${4:-} sig json line n=0 args=() reencoded extra blobs opaque b k=0 name calls=""
+  local ind=$1 data=$2 id=$3 target=$4 multisend=${5:-} bundler=${6:-} sig json line n=0 args=() reencoded extra blobs opaque b k=0 name calls=""
   if [ "$data" = 0x ]; then echo "${ind}$T_ETH_ONLY"; row "$id-data" data "$V_NONE"; return; fi
-  sig=$(printf '%s' "$FUNCTIONS" | grep "^${data:0:10} " | cut -d' ' -f2- || true)
+  lookup "$target" "$data"
+  sig=$SIG
   if [ -z "$sig" ]; then
     echo "${ind}data:      $data"
     row "$id-data" data "$data" "$N_UNKNOWN_FN"
-    warn "$ind" "$W_UNKNOWN_FN" "$CALLS" "${data:0:10}"
+    if [ -f "$WORK/abi/$target.none" ]; then warn "$ind" "$W_UNVERIFIED" "$CALLS" "$(cast to-check-sum-address "$target")"
+    elif [ -s "$WORK/abi/$target.unverified" ]; then
+      warn "$ind" "$W_IMPL_UNVERIFIED" "$CALLS" "$(cast to-check-sum-address "$target")" "$(cast to-check-sum-address "$(head -1 "$WORK/abi/$target.unverified")")"
+    else warn "$ind" "$W_UNKNOWN_FN" "$CALLS" "${data:0:10}" "$(cast to-check-sum-address "$target")"
+    fi
     return
   fi
   echo "${ind}$(printf "$T_FN" "$sig" "${data:0:10}")"
+  if [ "$FROM" != "$target" ]; then note "$ind" "$O_PROXY" "$(cast to-check-sum-address "$target")" "$(cast to-check-sum-address "$FROM")"; fi
   case ${sig%%(*} in
     addOwnerWithThreshold|removeOwner|swapOwner|changeThreshold|enableModule|disableModule|setGuard|setModuleGuard|setFallbackHandler|approveHash|execTransactionFromModule|setup)
       warn "$ind" "$W_ADMIN" "$sig" ;;
@@ -556,14 +620,14 @@ show_data() {
       if [ -n "$multisend" ]; then split_multisend "$ind" "$(jq -r '.data[0]' <<<"$json" | tr 'A-F' 'a-f')"
       else warn "$ind  " "$W_NOT_SPLIT" "$CALLS"
       fi ;;
-    'multicall((address,bytes,uint256,bool,bytes32)[])') b=$(jq -c '.data[0]' <<<"$json"); show_bundle "$ind  " "$b" "$id" ;;
+    'multicall((address,bytes,uint256,bool,bytes32)[])') b=$(jq -c '.data[0]' <<<"$json"); show_bundle "$ind  " "$b" "$id" "$target" ;;
     'morphoSupplyCollateral((address,address,address,address,uint256),uint256,address,bytes)')
       # Morpho calls Bundler3 back with this data, abi.encode(Call[]): a bundle that runs for the Safe.
       b=$(jq -r '.data[3]' <<<"$json")
       if [ "$b" != 0x ]; then
         echo "$ind  $T_CALLBACK"
         group "$id.1" "$G_INNER"
-        show_data "$ind    " "0x374f435d${b#0x}" "$id.1"
+        show_data "$ind    " "0x374f435d${b#0x}" "$id.1" "${bundler:-$target}"
       fi ;;
     *)
       case $sig in
@@ -574,18 +638,18 @@ show_data() {
           opaque=$blobs ;;
         *)
           apply_layouts "$ind  " "$sig" "$json"
-          # A known call is decoded wherever it is; only the warning for undecodable bytes is dropped for what a layout read.
-          blobs=$(blobs_in "$json") || die "$E_CAST"
-          opaque=$(blobs_in "$json" "$LAID") || die "$E_CAST" ;;
+          opaque=$(blobs_in "$json" "$LAID") || die "$E_CAST"
+          blobs=$opaque ;;
       esac
       for b in $blobs; do
         if [ -z "$calls" ] && { [ ${#b} = 42 ] || [ ${#b} = 66 ]; }; then continue; fi  # an address or a bytes32 is shown as is, never decoded
-        if printf '%s' "$FUNCTIONS" | grep -q "^${b:0:10} "; then
+        if [ -n "$calls" ]; then lookup "$target" "$b"; fi
+        if [ -n "$calls" ] && [ -n "$SIG" ]; then
           echo "$ind  $T_INNER"
           k=$((k + 1))
           group "$id.$k" "$G_INNER"
-          show_data "$ind    " "$b" "$id.$k"
-        elif grep -qxF -- "$b" <<<"$opaque"; then
+          show_data "$ind    " "$b" "$id.$k" "$target"
+        else
           warn "$ind  " "$W_BYTES" "$CALLS" "$(( (${#b} - 2) / 2 ))" "${b:0:10}"
         fi
       done ;;
@@ -728,7 +792,7 @@ apply_layouts() {
 
 # Bundler3 runs each Call(to, data, value, skipRevert, callbackHash) with the Safe as initiator.
 show_bundle() {
-  local ind=$1 bundle=$2 parent=$3 i=0 count data to value id title
+  local ind=$1 bundle=$2 parent=$3 bundler=$4 i=0 count data to value id title
   count=$(jq length <<<"$bundle")
   while [ $i -lt "$count" ]; do
     id=$parent.$((i + 1))
@@ -742,7 +806,7 @@ show_bundle() {
     addr_row "$id-to" to "$to"
     row "$id-value" "$K_VALUE" "$value"
     data=$(jq -r ".[$i][1]" <<<"$bundle" | tr 'A-F' 'a-f')
-    show_data "$ind   " "$data" "$id"
+    show_data "$ind   " "$data" "$id" "$(lc "$to")" "" "$bundler"
     i=$((i + 1))
   done
 }
@@ -803,6 +867,7 @@ check_tx() {
   printf "$T_VERSION\n" "$SAFE_VERSION" "$CONFIG"
   printf "$T_KNOWN\n" "$KNOWN"
   printf "$T_LAYOUTS\n" "$LAYOUTS_FILE"
+  printf "$T_ABIS\n" "${CHECK_SOURCIFY_DIR:-$SOURCIFY}"
   echo "nonce:          $nonce"
   echo "safeTxGas:      $safe_tx_gas"
   echo "baseGas:        $base_gas"
@@ -948,6 +1013,7 @@ main() {
   rm -f "$OUT/nonce-$(jq -r '.[0].nonce' <<<"$txs").html"  # a page from an earlier run must not outlive a run that stops
   WORK=$(mktemp -d)
   trap 'rm -rf "$WORK"' EXIT
+  mkdir "$WORK/abi"
   ROWS=$WORK/rows
   while [ $i -lt "$count" ]; do
     check_tx "$(jq -c ".[$i]" <<<"$txs")" "$count"

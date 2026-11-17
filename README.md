@@ -22,7 +22,7 @@
 
 - **One computer is one point of failure.** If malware or a prompt-injected AI controls your work computer, it can change what kiss-sign shows you. `check.sh` shares neither the computer, the code nor the address list with it. Both read the transaction from the same Safe Transaction Service, so the hashes on your hardware wallet are what tie them to what you sign.
 - **The Safe Transaction Service's decode is not used.** The service and the Safe web app both show a decoded view of the transaction. `check.sh` ignores it. It computes the hash your hardware wallet signs and decodes every call itself, from the raw `to`, `value`, `data` and `operation` fields.
-- **You can read all of it.** It is about 1,000 lines of Bash that use Foundry's `cast`, `curl`, `jq` and standard Unix tools, and nothing else. You read it once, in one sitting, and pin the commit you read.
+- **You can read all of it.** It is about 1,100 lines of Bash that use Foundry's `cast`, `curl`, `jq` and standard Unix tools, and nothing else. You read it once, in one sitting, and pin the commit you read.
 
 ## How it works
 
@@ -40,7 +40,7 @@ macOS ships `curl` and Bash 3.2, which is enough. Then:
 ```sh
 git clone https://github.com/ipromise2324/kiss-sign-check.git
 cd kiss-sign-check
-less check.sh known-functions.txt known-layouts.txt  # read all three in full, once
+less check.sh known-layouts.txt  # read both in full, once
 git rev-parse HEAD                 # write down the commit you read
 git status --short                 # before each use: git rev-parse HEAD gives the commit you wrote down, and this prints nothing
 cp config.example config  # set SAFE, SAFE_VERSION (as the Safe web app shows it) and LANGUAGE
@@ -60,7 +60,7 @@ After you propose the transaction and kiss-sign `verify` prints `MATCH` on your 
 ./check.sh 1566
 ```
 
-It fetches the transactions at that nonce from `api.safe.global`, mainnet only and with no API key. That is its only network request. `./check.sh --file <tx.json>` reads the same JSON from a file instead. The terminal prints a summary (here run with `CHECK_OUT=out`, so the page path is short):
+It fetches the transactions at that nonce from `api.safe.global`, and the ABI of each contract a call goes to from `sourcify.dev`, both mainnet only and with no API key. Those are its only network requests. `./check.sh --file <tx.json>` reads the transactions from a file instead; it still asks Sourcify for the ABIs. Sourcify thus learns which contracts your pending transaction calls. If Sourcify does not answer, or answers with anything but the contract's ABI or "not verified", `check.sh` stops and writes no page; run it again later. The terminal prints a summary (here run with `CHECK_OUT=out`, so the page path is short):
 
 ![The terminal after ./check.sh 1566: the safeTxHash, 3 calls from the Safe, a note that call #3 has 8 bytes after its arguments, no warnings, and the path of the page](docs/readme/terminal.png)
 
@@ -79,11 +79,13 @@ If several transactions share the nonce, the summary and the page show each one 
 
 The page and the terminal are in the language `config` sets, as kiss-sign's page is in the one its `init` recorded; set both the same, and every row but the name column compares byte for byte. The page runs no script and loads nothing from outside. Its accent colour differs from kiss-sign's, so the two pages are not mistaken for each other side by side. The row format is in [docs/checklist.md](docs/checklist.md).
 
-### Teach it a new function
+### Where the functions come from
 
-`check.sh` decodes only the functions in [`known-functions.txt`](known-functions.txt), one signature per line, and computes each selector with `cast sig`. It never guesses a function or looks one up online. Today the list covers ERC-20, ERC-4626 vaults, Safe MultiSend, Morpho Bundler3 and its adapters, Uniswap Permit2's `approve` and the Universal Router's `execute`, CoW's `setPreSignature`, Morpho Blue's `setAuthorization`, Morpho Vault V2's admin functions (`multicall`, `submit`, `revoke`, the cap changes, `allocate` and `deallocate`), Morpho's Universal Rewards Distributor's `claim`, Merkl and Fluid claims, CCTP's `receiveMessage`, and the Safe's own admin functions. A decoder is matched by the full signature, so Vault V2's `multicall(bytes[])` and Bundler3's `multicall` are told apart.
+Nobody keeps a list of functions. For each call, `check.sh` asks [Sourcify](https://sourcify.dev) for the ABI of the contract the call goes to, computes each function's selector from its signature with `cast sig`, and decodes the call with the function whose selector starts the data. For a proxy it uses the ABI of the implementation Sourcify reports, and a note names that implementation. A contract or implementation Sourcify has not verified, or a selector its ABI lacks, leaves the data raw with a warning. When a proxy's own ABI and its implementation's both have the selector, the proxy's is shown.
 
-Each kiss-sign template's calls decode, so their rows match `verify`'s.
+Calls inside a call are decoded with the ABI of the contract they go to: each call a MultiSend splits into, and each call of a Bundler3 `multicall`, with the ABI of its own `to`; each call of `multicall(bytes[])`, `submit(bytes)` and `revoke(bytes)` with the same contract's, since the contract calls itself; and the bundle Morpho calls back with from a `morphoSupplyCollateral` inside a Bundler3 `multicall` with that Bundler3's.
+
+Sourcify is trusted only to help you read. Each call's `function` row in the comparison list holds the full signature and the selector, and kiss-sign writes that row from an ABI it proves on its own, by compiling the contract's verified source and comparing the result with the code on chain. If Sourcify gives a wrong ABI, such as an old implementation's or one whose function has another signature with the same selector, the row shows a different signature, or the call shows as one raw `data` row, and the two pages differ. A row that differs means stop, whichever side is wrong.
 
 ### Teach it a data layout
 
@@ -94,14 +96,14 @@ The shipped file reads Vault V2's cap ids and a market adapter's `allocate` and 
 ## What it checks
 
 - **The hash, computed locally.** The safeTxHash comes from the same `to`, `value`, `data`, `operation` and gas fields the decode prints. The service's own hash is used only to warn when it differs.
-- **Every call.** Each call inside a MultiSend, each call of a Bundler3 `multicall` with its target and value, the bundle Morpho calls back with from `morphoSupplyCollateral`, and each known call inside any other `bytes` argument. A MultiSend is split into the Safe's calls only when the Safe itself DELEGATECALLs an official MultiSend, and the list must split exactly.
+- **Every call.** Each call inside a MultiSend, each call of a Bundler3 `multicall` with its target and value, each call of `multicall(bytes[])`, `submit(bytes)` and `revoke(bytes)`, and the bundle Morpho calls back with from `morphoSupplyCollateral`. A MultiSend is split into the Safe's calls only when the Safe itself DELEGATECALLs an official MultiSend, and the list must split exactly.
 - **The decode is exact.** The decoded arguments are encoded again and compared with the data. Bytes after the arguments are a note; any other difference is a warning.
 - **Every address is named, or flagged.** Names come only from your `known-addresses.txt`, the built-in MultiSend list, the Safe in your `config` and the zero address.
 - **Warnings for what usually means trouble:**
   - non-zero `safeTxGas`, `baseGas`, `gasPrice`, `gasToken` or `refundReceiver`;
   - a DELEGATECALL other than the Safe's own call into an official MultiSend, or a plain CALL into an official MultiSend;
   - a zero `to` inside a MultiSend;
-  - an unknown function or address, or a `bytes` argument or part it cannot decode, or that fits no layout it has;
+  - a contract Sourcify has not verified, a function its ABI lacks, an unknown address, or a `bytes` argument or part it cannot decode, or that fits no layout it has;
   - ETH sent along with a call that has data, from the Safe or a MultiSend (a Bundler3 call's value is shown, not warned on);
   - a Safe admin function anywhere, such as adding an owner;
   - several transactions at one nonce;
@@ -112,7 +114,8 @@ The shipped file reads Vault V2's cap ids and a market adapter's `allocate` and 
 
 - **It does not judge.** It does not know whether a contract is the protocol's real one, or whether the transaction is what you meant. kiss-sign does that, against your card. `check.sh` only shows what the transaction is, so read its calls against what you meant to do.
 - **It does not read the chain or simulate.** It sees the transaction, not its effects.
-- **Bytes that are neither a known call nor a known layout stay opaque.** A CCTP message, or a Uniswap router command `known-layouts.txt` does not cover, is shown raw with a warning. Addresses packed inside such bytes are not named. A value of exactly 20 or 32 bytes, or under 4 bytes, is never decoded and gets no warning, since it reads like an address, a `bytes32` or a short field. The exceptions: each call of `multicall(bytes[])`, `submit(bytes)` and `revoke(bytes)`, and each element under a `commands` layout, is decoded or warned about whatever its length, and a `known-layouts.txt` line reads a value of any length.
+- **It does not prove an ABI.** It decodes with Sourcify's ABI as given; the comparison with kiss-sign's rows is what catches a wrong one.
+- **Bytes that are neither a call it splits nor a known layout stay opaque.** A CCTP message, a call passed inside some other `bytes` argument, or a Uniswap router command `known-layouts.txt` does not cover, is shown raw with a warning. Addresses packed inside such bytes are not named. A value of exactly 20 or 32 bytes, or under 4 bytes, is never decoded and gets no warning, since it reads like an address, a `bytes32` or a short field. The exceptions: each call of `multicall(bytes[])`, `submit(bytes)` and `revoke(bytes)`, and each element under a `commands` layout, is decoded or warned about whatever its length, and a `known-layouts.txt` line reads a value of any length.
 - **Amounts are raw integers**, in the token's base units, as kiss-sign's comparison list prints them.
 - **Mainnet only**, and Safe versions 1.1.0, 1.1.1, 1.2.0, 1.3.0, 1.4.0, 1.4.1 and 1.5.0.
 
@@ -123,6 +126,8 @@ The shipped file reads Vault V2's cap ids and a market adapter's `allocate` and 
 ```
 
 [`test/fixtures/`](test/fixtures/) holds real transactions of other Safes, recorded by kiss-sign, and crafted cases: hostile ones (`hostile-*`) and the two Vault V2 cap ids no recorded transaction holds. Each real case must reproduce its recorded on-chain safeTxHash. The tests read both the terminal and the page, compare the comparison lists of seven transactions, in each language, with [`test/expected/en/`](test/expected/en/) and [`test/expected/zh-TW/`](test/expected/zh-TW/) (a Bundler3 deposit, an ETH transfer, a Merkl claim, a CoW order, a Uniswap swap with its approvals, a Vault V2 cap submission and a reallocation), which kiss-sign's own tests also pin, compare the full decode of five cases `known-layouts.txt` reads, check that the comparison list is the same without the layout file, that a layout that does not fit keeps its warning and says why, and that a malformed or wrong layout line is refused, and check that hostile text in the service's fields is never shown, and that the same text as an address-list name is shown escaped, with its bidi and control characters replaced. `test/known-addresses.txt` is for the tests only; do not sign with it.
+
+The tests read no network. [`test/sourcify/`](test/sourcify/) holds Sourcify's answer for every contract `check.sh` asks about while it decodes the fixtures, named `<address>.<HTTP status>.json`, and `CHECK_SOURCIFY_DIR` makes `check.sh` read them instead of asking Sourcify. `/bin/bash test/record-sourcify.sh` records them again, by running `check.sh` on every fixture with `CHECK_SOURCIFY_SAVE`, which saves each answer it gets.
 
 The official MultiSend addresses in `check.sh` come from [safe-global/safe-deployments](https://github.com/safe-global/safe-deployments) at commit `ca9cb0d2d5f5175fc8e41d579f356748d2bc1c62`.
 

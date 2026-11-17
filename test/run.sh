@@ -7,6 +7,8 @@ TEST=$(cd "$(dirname "$0")" && pwd)
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 FAILED=0
+# Sourcify's answers, recorded by test/record-sourcify.sh, so no test reads the network.
+export CHECK_SOURCIFY_DIR=$TEST/sourcify
 
 # Each case runs in the language L names; HASH is the start of the summary's safeTxHash line in it. LAYOUTS is the
 # layout list a case reads.
@@ -44,7 +46,8 @@ case_ morpho-bundles-deposit 1.4.1 0xe1ae687dc96aa54128f515735204350f9bd7c0b4fb2
   '+vaultBundlesV1Deposit' '+在引數之後多出 8 bytes' '+沒有警告'
 case_ morpho-deposit-approve-trailer-other-safe 1.4.1 0xda44113d1fa93aa491fd93713d7aaa0ea34ceb28414cbe4ee1d32d796c1342f3 \
   '+multicall((address,bytes,uint256,bool,bytes32)[])' '+erc20TransferFrom' '+erc4626Deposit' '+在引數之後多出 8 bytes' '+沒有警告' \
-  '+<h2>警告 <span class="c">0</span></h2>' '+<h2>注意 <span class="c">2</span></h2>' '-!! 警告' \
+  '+<h2>警告 <span class="c">0</span></h2>' '+<h2>注意 <span class="c">3</span></h2>' '-!! 警告' \
+  '+0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 是 proxy：它的呼叫依 0x43506849D7C04F9138D1A2050bbF3A0c054402dd 的 ABI 解碼' \
   '+<title>獨立檢查 check.sh · nonce ' '+<span class="prog">獨立檢查 check.sh</span> · nonce ' '+獨立檢查 check.sh 的頁面，nonce '
 case_ merkl-claim-two-tokens 1.3.0 0x1b1774a52d845dce2ea6faac3ab5dd01747adda3af6838dde7f4f4107abdd59a \
   '+claim(address[],address[],uint256[],bytes32[][])' '+沒有警告'
@@ -60,9 +63,10 @@ case_ morpho-set-authorization 1.4.1 0x84ef6bee2a4aa95ad1c0ba8e9fa9b0ad2cbae3364
 case_ morpho-borrow-set-authorization 1.4.1 0x0aa75b0fa21bb435a0a63eafa003e7b546a4c0b6d9172bf594383b4c0e65037e \
   '+setAuthorization(address,bool)' '+morphoSupplyCollateral' '+morphoBorrow' '+沒有警告'
 case_ permit2-unlimited-approval 1.4.1 0x5ddf364b6199c45b5bf4e631a52083d125bfadf538a3647cb050dc244b9fea2e \
-  '+approve(address,address,uint160,uint48)' '+multicall(bytes[])' '+有 868 bytes 的 bytes 引數無法解碼（0xdd46508f…）'
+  '+approve(address,address,uint160,uint48)' '+multicall(bytes[])' '+initializePool((address,address,uint24,int24,address),uint160)' \
+  '+modifyLiquidities(bytes,uint256)' '+有 768 bytes 的 bytes 引數無法解碼（0x00000000…）'
 case_ cctp-receive-then-call 1.4.1 0xaffef7919a235fa81f6ddfcd5b140eb0a56f618b47d17a124fc95fa9735f002c \
-  '+receiveMessage(bytes,bytes)' '+有 248 bytes 的 bytes 引數無法解碼' '+裡有未知函式 selector 0xbcd7e46c'
+  '+receiveMessage(bytes,bytes)' '+有 248 bytes 的 bytes 引數無法解碼' '+transferUSDCToCCTP(uint256,uint32)'
 case_ cow-swap-usdc 1.3.0 0x8716f2b4b77fab0162bb87c9f95b49f19ef16a14306677c71dbba39c759c2b66 \
   '+setPreSignature(bytes,bool)' '+引數 1 依 packed bytes32 address uint32 解讀（known-layouts.txt）:' '+沒有警告'
 case_ uniswap-swap-approve-usdt-usdc 1.4.1 0xdad1c654fc116f37f62b76f974fd4dc865dbe58387204cbc2355babd99c5de49 \
@@ -84,12 +88,14 @@ case_ hostile-two-txs-same-nonce 1.4.1 0x5da4666bcaac9ee9e596762e220ffa6407a6da6
 
 case_ hostile-evil-inject 1.4.1 0x103faaa423a43bfd4fc34b19262d494d34852e353bc3449e5d403f299b9458eb \
   '+服務給的 safeTxHash 格式不對（不顯示）' '+Safe 管理函式 addOwnerWithThreshold' "-$(printf '\033')"
-case_ hostile-hidden-bundler-call 1.4.1 - '+裡有未知函式 selector 0x39029ab6'
+case_ hostile-hidden-bundler-call 1.4.1 - '+erc4626Mint(address,uint256,uint256,address)' '+不認識的地址 0x5555555555555555555555555555555555555555'
 case_ hostile-hidden-callback 1.4.1 - '+Morpho 回呼的 bundle' '+erc20TransferFrom' '+不認識的地址 0x5555555555555555555555555555555555555555'
 case_ hostile-dirty-uint8 1.4.1 - '+資料不是標準 ABI 編碼'
 case_ hostile-big-value 1.4.1 - '+錯誤: 無法編碼這筆交易的欄位'
 case_ hostile-multisend-plain-call 1.4.1 - '+multiSend 不是 Safe 最外層對官方 MultiSend 的 DELEGATECALL' '+Safe 發出的呼叫數: 1' '-呼叫 #2'
-case_ hostile-multisend-in-bundle 1.4.1 - '+multiSend 不是 Safe 最外層對官方 MultiSend 的 DELEGATECALL' '+Safe 發出的呼叫數: 1' '-呼叫 #2'
+case_ hostile-multisend-in-bundle 1.4.1 - '+裡有未知函式 selector 0x8d80ff0a（不在 Sourcify 給 0x4A6c312ec70E8747a587EE860a0353cd42Be0aE0 的 ABI）' \
+  '+Safe 發出的呼叫數: 1' '-呼叫 #2'
+case_ hostile-unverified-target 1.4.1 - '+呼叫 #1 的對象 0x1111111111111111111111111111111111111111 沒有在 Sourcify 驗證' '-transfer(address,uint256)'
 case_ hostile-selector-prefix-address 1.4.1 - '-內含的呼叫' '-無法依'
 case_ hostile-short-call-in-multicall 1.4.1 - '+multicall(bytes[])' '+有 32 bytes 的 bytes 引數無法解碼（0x715018a6…）' '-沒有警告'
 case_ hostile-layout-packed-length 1.4.1 - '+的 57 bytes（0xc45125ce…）不符合 known-layouts.txt: packed bytes32 address uint32 佔 56 bytes，不是 57' \
@@ -99,9 +105,9 @@ case_ hostile-layout-unknown-command 1.4.1 - '+指令 0x05 不在表 universal-r
 case_ hostile-layout-count 1.4.1 - '+2 個指令，但有 1 個元素' '+有 1024 bytes 的 bytes 引數無法解碼' '-1/1  指令'
 case_ hostile-layout-reencode 1.4.1 - '+重新編碼成 288 bytes，不是這 320 bytes；第一個不同處在 byte offset 288' '+有 320 bytes 的 bytes 引數無法解碼' '-部分 1:'
 case_ hostile-layout-bidi-string 1.4.1 - '+的 128 bytes（0x00000000…）不符合 known-layouts.txt' '+有 128 bytes 的 bytes 引數無法解碼' "-$(printf '\xe2\x80\xae')"
-case_ hostile-layout-uid-selector 1.4.1 - '+內含的呼叫' '+資料無法依 transfer(address,uint256) 解碼' '+部分 3:  1793413948'
-case_ hostile-layout-call-under-unknown-command 1.4.1 - '+指令 0x05 不在表 universal-router' '+內含的呼叫' \
-  '+不認識的地址 0x1111111111111111111111111111111111111111'
+case_ hostile-layout-uid-selector 1.4.1 - '-內含的呼叫' '+部分 3:  1793413948' '+沒有警告'
+case_ hostile-layout-call-under-unknown-command 1.4.1 - '+指令 0x05 不在表 universal-router' '-內含的呼叫' \
+  '+有 68 bytes 的 bytes 引數無法解碼（0xa9059cbb…）'
 case_ hostile-layout-settle-reencode 1.4.1 - '+重新編碼成 96 bytes，不是這 128 bytes；第一個不同處在 byte offset 96' '+有 128 bytes 的 bytes 部分無法解碼'
 LAYOUTS=$WORK/deep-layouts.txt
 sed 's/^v4-actions: 0x07 SWAP_EXACT_IN abi .*/v4-actions: 0x07 SWAP_EXACT_IN commands v4-actions/' "$TEST/../known-layouts.txt" > "$LAYOUTS"
@@ -201,11 +207,12 @@ case_ fluid-deposit-usdt-other-safe 1.4.1 0x08e24eed62490209a17956478009d4015255
   '+DELEGATECALL (official MultiSend)' '+calls the Safe makes: 3' '+No warnings'
 case_ morpho-deposit-approve-trailer-other-safe 1.4.1 0xda44113d1fa93aa491fd93713d7aaa0ea34ceb28414cbe4ee1d32d796c1342f3 \
   "+call #2's data has 8 bytes after the arguments: 0x" '+Bundler3 call 2/2' '+No warnings' \
-  '+<h2>Warnings <span class="c">0</span></h2>' '+<h2>Notes <span class="c">2</span></h2>' '-!! Warning' \
+  '+<h2>Warnings <span class="c">0</span></h2>' '+<h2>Notes <span class="c">3</span></h2>' '-!! Warning' \
+  '+0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 is a proxy: its calls are decoded with the ABI of 0x43506849D7C04F9138D1A2050bbF3A0c054402dd' \
   '+<title>check.sh independent check · nonce ' '+<span class="prog">check.sh independent check</span> · nonce ' '+check.sh page for nonce '
 case_ permit2-unlimited-approval 1.4.1 0x5ddf364b6199c45b5bf4e631a52083d125bfadf538a3647cb050dc244b9fea2e \
-  '+has a bytes argument of 868 bytes that cannot be decoded (0xdd46508f…)'
-case_ cctp-receive-then-call 1.4.1 0xaffef7919a235fa81f6ddfcd5b140eb0a56f618b47d17a124fc95fa9735f002c '+has an unknown function selector 0xbcd7e46c'
+  '+has a bytes argument of 768 bytes that cannot be decoded (0x00000000…)'
+case_ cctp-receive-then-call 1.4.1 0xaffef7919a235fa81f6ddfcd5b140eb0a56f618b47d17a124fc95fa9735f002c '+transferUSDCToCCTP(uint256,uint32)'
 case_ hostile-multisend-leftover-bytes 1.4.1 - '+the MultiSend ends with 32 bytes, too few for a call'
 case_ hostile-multisend-length-too-long 1.4.1 - '+a MultiSend length field says 100 bytes, but only 68 bytes are left'
 case_ hostile-delegatecall-not-multisend 1.4.1 - '+call #1 is a DELEGATECALL'
@@ -217,7 +224,10 @@ case_ hostile-two-txs-same-nonce 1.4.1 0x5da4666bcaac9ee9e596762e220ffa6407a6da6
   '+2 different transactions: sign only the one' '+<h2>Checklist (2 of 2)</h2>'
 case_ hostile-evil-inject 1.4.1 0x103faaa423a43bfd4fc34b19262d494d34852e353bc3449e5d403f299b9458eb \
   "+the service's safeTxHash is malformed (not shown)" '+Safe admin function addOwnerWithThreshold' "-$(printf '\033')"
-case_ hostile-hidden-bundler-call 1.4.1 - '+has an unknown function selector 0x39029ab6'
+case_ hostile-hidden-bundler-call 1.4.1 - '+erc4626Mint(address,uint256,uint256,address)'
+case_ hostile-multisend-in-bundle 1.4.1 - \
+  "+call #1 has a function selector 0x8d80ff0a that is not in the ABI Sourcify gives for 0x4A6c312ec70E8747a587EE860a0353cd42Be0aE0"
+case_ hostile-unverified-target 1.4.1 - '+call #1 goes to 0x1111111111111111111111111111111111111111, which is not verified on Sourcify; its data is shown raw'
 case_ hostile-hidden-callback 1.4.1 - "+Morpho&apos;s callback bundle" '+unknown address 0x5555555555555555555555555555555555555555'
 case_ hostile-dirty-uint8 1.4.1 - '+data is not standard ABI encoding'
 case_ hostile-big-value 1.4.1 - "+Error: cannot encode this transaction's fields"
@@ -268,8 +278,7 @@ layouts_() {
   printf '%-45s %s\n' "layouts: $label" "$status"
   if [ "$status" != PASS ]; then FAILED=$((FAILED + 1)); echo "$out" | tail -5; fi
 }
-layouts_ 'function not in known-functions' $'swap(bytes) 1 abi (address)\n' \
-  'known-layouts.txt line 1 names swap(bytes), which is not in known-functions.txt'
+layouts_ 'not a function signature' $'swap 1 abi (address)\n' 'known-layouts.txt line 1 is malformed'
 layouts_ 'bidi character in a comment' $'# fine \xe2\x80\xae\nsetPreSignature(bytes,bool) 1 packed bytes32 address uint32\n' 'line 1 holds a character that is not printable ASCII'
 layouts_ 'control character' $'setPreSignature(bytes,bool) 1 packed bytes32\x01 address uint32\n' 'line 1 holds a character that is not printable ASCII'
 layouts_ 'line ending in CR' $'# ok\nsetPreSignature(bytes,bool) 1 packed bytes32 address uint32\r\n' 'line 2 holds a character that is not printable ASCII'
@@ -294,6 +303,37 @@ out=$(CHECK_CONFIG="$WORK/config" CHECK_KNOWN="$TEST/known-addresses.txt" CHECK_
   /bin/bash "$TEST/../check.sh" --file "$TEST/fixtures/eth-transfer-null-data.json" 2>&1) || true
 if grep -qF "$WORK/no-such-layouts.txt not found" <<<"$out" && ! [ -d "$WORK/out" ]; then printf '%-45s PASS\n' 'layouts: missing file'
 else printf '%-45s FAIL\n' 'layouts: missing file'; FAILED=$((FAILED + 1)); fi
+
+# Answers derived from the recorded ones: an ABI with a function in a type that is not canonical, which is left out, and
+# a proxy whose implementation Sourcify has not verified.
+derived_() {
+  local label=$1 want=$2 status=PASS
+  printf 'SAFE=%s\nSAFE_VERSION=1.4.1\nLANGUAGE=en\n' "$(jq -r .safe "$TEST/fixtures/erc20-transfer-usdc.json")" > "$WORK/config"
+  rm -rf "$WORK/out"
+  out=$(CHECK_CONFIG="$WORK/config" CHECK_KNOWN="$TEST/known-addresses.txt" CHECK_OUT="$WORK/out" CHECK_SOURCIFY_DIR="$WORK/derived" \
+    /bin/bash "$TEST/../check.sh" --file "$TEST/fixtures/erc20-transfer-usdc.json" 2>&1) || true
+  if [ -d "$WORK/out" ]; then out="$out"$'\n'"$(cat "$WORK"/out/*.html)"; else status=FAIL; fi
+  grep -qF -- "$want" <<<"$out" || status=FAIL
+  printf '%-45s %s\n' "Sourcify: $label" "$status"
+  if [ "$status" != PASS ]; then FAILED=$((FAILED + 1)); echo "$out" | tail -5; fi
+}
+USDC=0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48 FIATTOKEN=0x43506849d7c04f9138d1a2050bbf3a0c054402dd
+rm -rf "$WORK/derived"; cp -R "$TEST/sourcify" "$WORK/derived"
+jq -c '.abi += [{type: "function", name: "z", inputs: [{type: "Foo"}]}]' "$TEST/sourcify/$FIATTOKEN.200.json" > "$WORK/derived/$FIATTOKEN.200.json"
+derived_ 'type that is not canonical' 'transfer(address,uint256) 0xa9059cbb'
+jq -c '.proxyResolution.implementations = [{address: "0x1111111111111111111111111111111111111111"}]' "$TEST/sourcify/$USDC.200.json" > "$WORK/derived/$USDC.200.json"
+derived_ 'implementation not verified' \
+  'goes to the proxy 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48, whose implementation 0x1111111111111111111111111111111111111111 is not verified on Sourcify'
+
+# A call whose ABI check.sh cannot get stops it before any page is written.
+rm -rf "$WORK/out"
+mkdir "$WORK/no-answers"
+printf 'SAFE=%s\nSAFE_VERSION=1.4.1\nLANGUAGE=en\n' "$(jq -r .safe "$TEST/fixtures/erc20-transfer-usdc.json")" > "$WORK/config"
+out=$(CHECK_CONFIG="$WORK/config" CHECK_KNOWN="$TEST/known-addresses.txt" CHECK_OUT="$WORK/out" CHECK_SOURCIFY_DIR="$WORK/no-answers" \
+  /bin/bash "$TEST/../check.sh" --file "$TEST/fixtures/erc20-transfer-usdc.json" 2>&1) || true
+if grep -qF "no recorded Sourcify answer for 0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48" <<<"$out" && ! [ -d "$WORK/out" ]; then
+  printf '%-45s PASS\n' 'Sourcify: no answer'
+else printf '%-45s FAIL\n' 'Sourcify: no answer'; FAILED=$((FAILED + 1)); echo "$out" | tail -5; fi
 
 # Both tables define the same keys in the same order, each with the same placeholders.
 table_() { sed -n "/^  $1)\$/,/;; *\$/p" "$TEST/../check.sh" | sed -nE 's/^ +([A-Z_]+)=.*/\1/p'; }

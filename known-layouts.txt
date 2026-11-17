@@ -7,7 +7,7 @@
 #   <table>: <byte> <NAME> <layout>                   one row of a command table; the layout is one of the three above,
 #                                                     where `commands <table>` reads the bytes as abi.encode(bytes, bytes[])
 #
-# <function> must be a line of known-functions.txt. Several abi or packed lines for one argument are tried in order.
+# <function> is a full signature, as cast sig takes it. Several abi or packed lines for one argument are tried in order.
 
 # Morpho Vault V2 caps: idData is the preimage of a cap id. MorphoMarketV1AdapterV2.ids() and MorphoVaultV1Adapter
 # build them, verified on Etherscan for the Flowmark fGenesis adapter 0x79da02d9c638cc9ae925188ad9dc245337981518 and
