@@ -22,7 +22,7 @@
 
 - **One computer is one point of failure.** If malware or a prompt-injected AI controls your work computer, it can change what kiss-sign shows you. `check.sh` shares neither the computer, the code nor the address list with it. Both read the transaction from the same Safe Transaction Service, so the hashes on your hardware wallet are what tie them to what you sign.
 - **The Safe Transaction Service's decode is not used.** The service and the Safe web app both show a decoded view of the transaction. `check.sh` ignores it. It computes the hash your hardware wallet signs and decodes every call itself, from the raw `to`, `value`, `data` and `operation` fields.
-- **You can read all of it.** It is about 1,100 lines of Bash that use Foundry's `cast`, `curl`, `jq` and standard Unix tools, and nothing else. You read it once, in one sitting, and pin the commit you read.
+- **You can read all of it.** It is about 1,000 lines of Bash that use Foundry's `cast`, `curl`, `jq` and standard Unix tools, and nothing else. You read it once, in one sitting, and pin the commit you read.
 
 ## How it works
 
@@ -40,7 +40,7 @@ macOS ships `curl` and Bash 3.2, which is enough. Then:
 ```sh
 git clone https://github.com/ipromise2324/kiss-sign-check.git
 cd kiss-sign-check
-less check.sh known-layouts.txt  # read both in full, once
+less check.sh                      # read it in full, once
 git rev-parse HEAD                 # write down the commit you read
 git status --short                 # before each use: git rev-parse HEAD gives the commit you wrote down, and this prints nothing
 cp config.example config  # set SAFE, SAFE_VERSION (as the Safe web app shows it) and LANGUAGE
@@ -50,15 +50,17 @@ Set `LANGUAGE` to the language your kiss-sign uses, the one its `init` recorded:
 
 A wrong `SAFE_VERSION` can give a hash that does not match your wallet, and a matching hash does not prove the version is right: versions 1.3.0 to 1.5.0 hash the same way, as do 1.1.0 to 1.2.0.
 
-Then write `known-addresses.txt` by hand, one `0x<address> <name>` per line, copying each address from the protocol's official documentation; `known-addresses.example.txt` shows the format. Never copy it from the work computer: the point is that this list does not come from there. The official Safe MultiSend addresses are built in. `CHECK_CONFIG`, `CHECK_KNOWN` and `CHECK_LAYOUTS` can name another config, address list and layout list, and the page names the ones it used. `config`, `known-addresses.txt` and `out/` are ignored by git and stay on this computer.
+Then write `known-addresses.txt` by hand, one `0x<address> <name>` per line, copying each address from the protocol's official documentation; `known-addresses.example.txt` shows the format. Never copy it from the work computer: the point is that this list does not come from there. The official Safe MultiSend addresses are built in. `CHECK_CONFIG` and `CHECK_KNOWN` can name another config and address list; the page names the address list's file, never a path on this computer. `config`, `known-addresses.txt` and `out/` are ignored by git and stay on this computer.
 
 ### At each signing
 
-After you propose the transaction and kiss-sign `verify` prints `MATCH` on your work computer, run on the second computer:
+After you propose the transaction and kiss-sign `verify` prints `MATCH` on your work computer, type on the second computer the command it prints, on its page and as its last line:
 
 ```sh
 ./check.sh 1566
 ```
+
+For a transaction whose template reads `bytes` that no ABI describes, the command carries hints, such as `./check.sh 5 --hints 'v1 C4-a2.1=abi(bytes,bytes[]) ...'`; see [Hints from kiss-sign](#hints-from-kiss-sign).
 
 It fetches the transactions at that nonce from `api.safe.global`, and the ABI of each contract a call goes to from `sourcify.dev`, both mainnet only and with no API key. Those are its only network requests. `./check.sh --file <tx.json>` reads the transactions from a file instead; it still asks Sourcify for the ABIs. Sourcify thus learns which contracts your pending transaction calls. If Sourcify does not answer, or answers with anything but the contract's ABI or "not verified", `check.sh` stops and writes no page; run it again later. The terminal prints a summary (here run with `CHECK_OUT=out`, so the page path is short):
 
@@ -87,11 +89,26 @@ Calls inside a call are decoded with the ABI of the contract they go to: each ca
 
 Sourcify is trusted only to help you read. Each call's `function` row in the comparison list holds the full signature and the selector, and kiss-sign writes that row from an ABI it proves on its own, by compiling the contract's verified source and comparing the result with the code on chain. If Sourcify gives a wrong ABI, such as an old implementation's or one whose function has another signature with the same selector, the row shows a different signature, or the call shows as one raw `data` row, and the two pages differ. A row that differs means stop, whichever side is wrong.
 
-### Teach it a data layout
+### Hints from kiss-sign
 
-Some `bytes` arguments hold no call but data in a fixed shape: a Morpho Vault V2 cap id, a CoW order UID, the inputs of a Uniswap Universal Router `execute`. [`known-layouts.txt`](known-layouts.txt), also written by hand from each protocol's source, each group of lines citing its source, says how to read them: as `abi.encode` of some types, as `abi.encodePacked` of fixed-size parts, or as a table of command bytes, at most two levels deep. The full decode then shows the parts, with every address named from your list, and that argument's warning is dropped, but only when the parts encode back to exactly the original bytes. Otherwise the warning stays, with a second one saying why. Decoded parts are never comparison-list rows, so the list is the same with or without them.
+Some `bytes` hold no call but data in a fixed shape that no contract's ABI describes: a Uniswap Universal Router command's input, a Morpho Vault V2 cap id, a market adapter's `allocate` data, a CoW order UID. Nobody keeps a list of these. kiss-sign's template for the operation already says how it reads them, so after `MATCH` kiss-sign prints them in the command as `--hints`, and `check.sh` reads layouts from there and nowhere else. Without `--hints`, those bytes stay raw with a warning.
 
-The shipped file reads Vault V2's cap ids and a market adapter's `allocate` and `deallocate` data, CoW's order UID, and the Universal Router's `PERMIT2_PERMIT` and `V4_SWAP` commands with the v4 swap actions and `SETTLE`, `SETTLE_ALL`, `TAKE`, `TAKE_ALL` and `TAKE_PORTION`. Every other router command or v4 action still warns, as does a bytes part such as a permit's 65-byte signature. A clean decode is not a judgment: a cap id that decodes may name a market you did not mean, and a swap's amounts are only shown. The format, its checks and the full coverage list are in [docs/known-layouts.md](docs/known-layouts.md).
+The hints are one argument: `v1`, then one entry per `bytes` value, each after one space, `<path>=abi(<types>)` or `<path>=packed(<type>,...)`. The path is the call's id in the comparison list, `-a`, the argument's number, then `.<n>` for each step into an array's item, a tuple's component, or a part an earlier entry reads, all from 1. `abi` gives the types the bytes are `abi.encode`d from; `packed` the fixed-size types `abi.encodePacked` joined (`address`, `bool`, `bytes1` to `bytes32`, `uint8` to `uint256`, `int8` to `int256`). For the Uniswap swap in the tests, whose `execute` is call `C4`:
+
+```
+v1 C4-a2.1=abi(bytes,bytes[]) C4-a2.1.2.1=abi((address,(address,uint24,int24,address,bytes)[],uint256[],uint128,uint128)) C4-a2.1.2.2=abi(address,uint256,bool) C4-a2.1.2.3=abi(address,address,uint256)
+```
+
+`C4-a2.1` is the router's first input, a `V4_SWAP`, and `C4-a2.1.2.1` to `.3` are its swap, settle and take. The hints hold only positions and types: no names, text, addresses, URLs or file paths. `check.sh` refuses, before it reads any transaction, hints in any other shape, such as another version, a character other than letters, digits, space, `()[],.=-`, an unknown type, a `packed` type that is not fixed-size, or a path given twice.
+
+The hints come from the work computer, the one this computer exists not to trust, so they can only help you read:
+
+- **No comparison-list row comes from a hint.** Every row is decoded from the transaction with Sourcify's ABI as without hints, and bytes a hint reads stay one row, folded with their keccak256. The tests run every pinned transaction with kiss-sign's hints, with hostile hints and with none, and require the same list.
+- **A reading is shown only if it encodes back.** The parts, encoded again with `cast abi-encode` (or `--packed`), must give exactly the original bytes. Otherwise the bytes stay raw with their warning, and a second warning says why the hint did not fit.
+- **A reading that fits keeps a warning.** Any bytes whose length is a multiple of 32 also fit as that many `uint256`, which would show a hidden call or address as numbers, and a `packed` hint can cut an address into two parts. So bytes a hint reads always carry a warning that they are shown as the hint reads them. A hint adds lines to the full decode; it never removes a warning or changes a row. Addresses in the parts are named from your list or warned about as anywhere else, and a `bytes` part no hint reads warns as before.
+- **A hint that names nothing is a warning.** An entry whose path holds no `bytes` in this transaction, or names bytes `check.sh` decodes as calls, is not used, and says so.
+
+So a wrong or hostile hint leaves the bytes raw with a warning, or shows a reading of them under a warning. The rows, the hashes and every other warning are what `check.sh` finds on its own. Read the parts against what you meant to do; a reading that fits is not a judgment.
 
 ## What it checks
 
@@ -103,7 +120,7 @@ The shipped file reads Vault V2's cap ids and a market adapter's `allocate` and 
   - non-zero `safeTxGas`, `baseGas`, `gasPrice`, `gasToken` or `refundReceiver`;
   - a DELEGATECALL other than the Safe's own call into an official MultiSend, or a plain CALL into an official MultiSend;
   - a zero `to` inside a MultiSend;
-  - a contract Sourcify has not verified, a function its ABI lacks, an unknown address, or a `bytes` argument or part it cannot decode, or that fits no layout it has;
+  - a contract Sourcify has not verified, a function its ABI lacks, an unknown address, or a `bytes` argument or part it cannot decode, bytes it shows as a hint reads them, a hint that does not fit, and a hint it does not use;
   - ETH sent along with a call that has data, from the Safe or a MultiSend (a Bundler3 call's value is shown, not warned on);
   - a Safe admin function anywhere, such as adding an owner;
   - several transactions at one nonce;
@@ -115,7 +132,7 @@ The shipped file reads Vault V2's cap ids and a market adapter's `allocate` and 
 - **It does not judge.** It does not know whether a contract is the protocol's real one, or whether the transaction is what you meant. kiss-sign does that, against your card. `check.sh` only shows what the transaction is, so read its calls against what you meant to do.
 - **It does not read the chain or simulate.** It sees the transaction, not its effects.
 - **It does not prove an ABI.** It decodes with Sourcify's ABI as given; the comparison with kiss-sign's rows is what catches a wrong one.
-- **Bytes that are neither a call it splits nor a known layout stay opaque.** A CCTP message, a call passed inside some other `bytes` argument, or a Uniswap router command `known-layouts.txt` does not cover, is shown raw with a warning. Addresses packed inside such bytes are not named. A value of exactly 20 or 32 bytes, or under 4 bytes, is never decoded and gets no warning, since it reads like an address, a `bytes32` or a short field. The exceptions: each call of `multicall(bytes[])`, `submit(bytes)` and `revoke(bytes)`, and each element under a `commands` layout, is decoded or warned about whatever its length, and a `known-layouts.txt` line reads a value of any length.
+- **Bytes that are neither a call it splits nor read by a hint stay opaque.** A CCTP message, a call passed inside some other `bytes` argument, or bytes a template reads but `check.sh` was given no hint for, is shown raw with a warning. Addresses packed inside such bytes are not named. A value of exactly 20 or 32 bytes, or under 4 bytes, is never decoded and gets no warning, since it reads like an address, a `bytes32` or a short field. The exceptions: each call of `multicall(bytes[])`, `submit(bytes)` and `revoke(bytes)` is decoded or warned about whatever its length.
 - **Amounts are raw integers**, in the token's base units, as kiss-sign's comparison list prints them.
 - **Mainnet only**, and Safe versions 1.1.0, 1.1.1, 1.2.0, 1.3.0, 1.4.0, 1.4.1 and 1.5.0.
 
@@ -125,7 +142,7 @@ The shipped file reads Vault V2's cap ids and a market adapter's `allocate` and 
 /bin/bash test/run.sh
 ```
 
-[`test/fixtures/`](test/fixtures/) holds real transactions of other Safes, recorded by kiss-sign, and crafted cases: hostile ones (`hostile-*`) and the two Vault V2 cap ids no recorded transaction holds. Each real case must reproduce its recorded on-chain safeTxHash. The tests read both the terminal and the page, compare the comparison lists of seven transactions, in each language, with [`test/expected/en/`](test/expected/en/) and [`test/expected/zh-TW/`](test/expected/zh-TW/) (a Bundler3 deposit, an ETH transfer, a Merkl claim, a CoW order, a Uniswap swap with its approvals, a Vault V2 cap submission and a reallocation), which kiss-sign's own tests also pin, compare the full decode of five cases `known-layouts.txt` reads, check that the comparison list is the same without the layout file, that a layout that does not fit keeps its warning and says why, and that a malformed or wrong layout line is refused, and check that hostile text in the service's fields is never shown, and that the same text as an address-list name is shown escaped, with its bidi and control characters replaced. `test/known-addresses.txt` is for the tests only; do not sign with it.
+[`test/fixtures/`](test/fixtures/) holds real transactions of other Safes, recorded by kiss-sign, and crafted cases: hostile ones (`hostile-*`) and the two Vault V2 cap ids no recorded transaction holds. Each real case must reproduce its recorded on-chain safeTxHash. The tests read both the terminal and the page, compare the comparison lists of seven transactions, in each language, with [`test/expected/en/`](test/expected/en/) and [`test/expected/zh-TW/`](test/expected/zh-TW/) (a Bundler3 deposit, an ETH transfer, a Merkl claim, a CoW order, a Uniswap swap with its approvals, a Vault V2 cap submission and a reallocation), which kiss-sign's own tests also pin, each run with the `--hints` kiss-sign prints for it, kept in [`test/expected/hints/`](test/expected/hints/) and pinned by kiss-sign's tests too, compare the full decode of the five cases hints read, check that the comparison list is the same with kiss-sign's hints, with hostile hints that fit and do not, and with none, that bytes a hint reads always keep a warning, that a hint that does not fit or names nothing says why, and that malformed hints are refused before anything runs, and check that hostile text in the service's fields is never shown, and that the same text as an address-list name is shown escaped, with its bidi and control characters replaced. `test/known-addresses.txt` is for the tests only; do not sign with it.
 
 The tests read no network. [`test/sourcify/`](test/sourcify/) holds Sourcify's answer for every contract `check.sh` asks about while it decodes the fixtures, named `<address>.<HTTP status>.json`, and `CHECK_SOURCIFY_DIR` makes `check.sh` read them instead of asking Sourcify. `/bin/bash test/record-sourcify.sh` records them again, by running `check.sh` on every fixture with `CHECK_SOURCIFY_SAVE`, which saves each answer it gets.
 

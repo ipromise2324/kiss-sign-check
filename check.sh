@@ -2,6 +2,7 @@
 # Shows exactly what a Safe transaction does, using only cast, curl and jq.
 #   ./check.sh <nonce>          fetch the transaction(s) at this nonce from the Safe Transaction Service
 #   ./check.sh --file <tx.json> read one transaction, or a page of them, in the service's JSON shape
+#   --hints '<hints>'           how to read bytes no ABI describes, as kiss-sign verify prints them; see README.md
 # Each called contract's ABI comes from Sourcify; CHECK_SOURCIFY_DIR names a directory of recorded answers instead.
 # The terminal gets a summary; the full decode and the 比對清單 go to out/nonce-<nonce>.html.
 set -euo pipefail
@@ -9,7 +10,6 @@ set -euo pipefail
 DIR=$(cd "$(dirname "$0")" && pwd)
 CONFIG=${CHECK_CONFIG:-$DIR/config}
 KNOWN=${CHECK_KNOWN:-$DIR/known-addresses.txt}
-LAYOUTS_FILE=${CHECK_LAYOUTS:-$DIR/known-layouts.txt}
 SOURCIFY=https://sourcify.dev/server/v2/contract/1
 OUT=${CHECK_OUT:-$DIR/out}
 ZERO=0x0000000000000000000000000000000000000000
@@ -50,12 +50,8 @@ case $WORDS in
     E_VERSION='unsupported SAFE_VERSION (supported: 1.1.0, 1.1.1, 1.2.0, 1.3.0, 1.4.0, 1.4.1, 1.5.0)'
     E_KNOWN_LINE='this line of known-addresses.txt is malformed: %s %s'
     E_DUP_ADDR='the same address appears twice: %s'
-    E_ASCII='%s line %s holds a character that is not printable ASCII'
-    E_LAYOUTS='%s not found'
-    E_LAYOUT_LINE='known-layouts.txt line %s is malformed: %s'
-    E_LAYOUT_CALLS='known-layouts.txt line %s names %s, whose bytes check.sh already decodes as calls'
-    E_LAYOUT_DUP='known-layouts.txt gives %s twice, or gives it both a commands layout and another'
-    E_LAYOUT_TABLE='known-layouts.txt names the table %s, which has no rows'
+    E_HINTS='--hints is malformed: %s'
+    E_HINT_DUP='--hints gives %s twice'
     E_JQ="this version of jq's @html or gsub differs from what this script expects (jq 1.7 or later is needed)"
     E_NOT_ADDR='%s is not an address'
     E_NOT_UINT='%s is not an integer'
@@ -66,7 +62,7 @@ case $WORDS in
     E_FETCH='cannot fetch the transactions from the Safe Transaction Service'
     E_PAGES='the service returned more than one page: too many transactions at this nonce'
     E_OTHER_NONCE='the service returned transactions of another nonce'
-    E_USAGE='usage: ./check.sh <nonce> or ./check.sh --file <tx.json>'
+    E_USAGE="usage: ./check.sh <nonce> [--hints '<hints>'] or ./check.sh --file <tx.json> [--hints '<hints>']"
     E_NO_TX='no transaction at this nonce'
     E_SOURCIFY="cannot fetch %s's ABI from Sourcify (HTTP status %s)"
     E_RECORDED='no recorded Sourcify answer for %s in %s'
@@ -84,15 +80,13 @@ case $WORDS in
     W_NOT_SPLIT="call #%s's multiSend is not the Safe's own DELEGATECALL to an official MultiSend; its calls are not split"
     W_BYTES='call #%s has a bytes argument of %s bytes that cannot be decoded (%s…); data or calls inside it may not be shown'
     W_PART_BYTES='call #%s has a bytes part of %s bytes that cannot be decoded (%s…); data or calls inside it may not be shown'
-    W_LAYOUT="call #%s's %s bytes (%s…) do not fit known-layouts.txt: %s"
+    W_HINTED="call #%s's %s bytes at %s (%s…) are shown as --hints reads them: check.sh checked that the parts encode back to these bytes, not that the contract reads them so"
+    W_HINT_UNFIT="call #%s's %s bytes at %s (%s…) do not fit --hints: %s"
+    W_HINT_UNUSED='the hint for %s was not used: this transaction holds no bytes there that check.sh reads by a hint'
     R_DECODE='cast cannot decode them as %s'
     R_ENCODE='read as %s, cast cannot encode the parts back'
     R_REENCODE='read as %s, the parts encode back to %s bytes, not these %s bytes; they first differ at byte offset %s'
     R_PACKED='%s takes %s bytes, not %s'
-    R_COUNT='%s commands but %s elements'
-    R_COMMAND='command 0x%s is not in the table %s'
-    R_DEPTH='commands nested more than %s deep'
-    R_OR='; or '
     W_MS_LEFTOVER='the MultiSend ends with %s bytes, too few for a call'
     W_MS_OP='a MultiSend operation is 0x%s, not 0 or 1'
     W_MS_HUGE='a MultiSend length field is unreasonably large'
@@ -114,16 +108,15 @@ case $WORDS in
     T_ADDR='address: '
     T_CALLBACK="Morpho's callback bundle:"
     T_INNER='inner call data (bytes argument):'
-    T_LAYOUT='argument %s as %s (known-layouts.txt):'
-    T_COMMANDS='arguments %s and %s as commands %s (known-layouts.txt):'
-    T_ELEMENT='%s/%s  command 0x%s %s as %s:'
+    T_HINT='%s as %s (--hints):'
     T_PART='part %s:  %s'
     T_SPLIT='MultiSend split into:'
     T_HEAD='================ Safe transaction nonce %s ================'
-    T_VERSION='Safe version:   %s (%s)'
+    T_VERSION='Safe version:   %s'
     T_KNOWN='address list:   %s'
-    T_LAYOUTS='layout list:    %s'
+    T_HINTS='hints:          %s'
     T_ABIS='ABIs from:      %s'
+    T_RECORDED='recorded Sourcify answers (CHECK_SOURCIFY_DIR)'
     T_CALLS="Calls (to, value, operation and data decoded here, not from the service's dataDecoded):"
     T_SUMMARY='================ Summary nonce %s ================'
     T_LANGUAGE='Language: English (LANGUAGE=en)'
@@ -151,7 +144,7 @@ case $WORDS in
     P_LOG='Full decode'
     P_LOG_LEAD="Everything check.sh decoded itself, with every address's name. Long values are folded; open one to read it in full."
     P_LONG=' (%s characters)'
-    P_FOOTER='Written by check.sh with only cast, curl and jq; it holds no AI text. Config: %s, address list: %s.' ;;
+    P_FOOTER='Written by check.sh with only cast, curl and jq; it holds no AI text.' ;;
   zh-TW)
     G_TX='交易'
     G_CALL='呼叫 #%s'
@@ -182,12 +175,8 @@ case $WORDS in
     E_VERSION='不支援的 SAFE_VERSION（支援 1.1.0、1.1.1、1.2.0、1.3.0、1.4.0、1.4.1、1.5.0）'
     E_KNOWN_LINE='known-addresses.txt 這行格式不對: %s %s'
     E_DUP_ADDR='同一個地址出現兩次: %s'
-    E_ASCII='%s 第 %s 行有可列印 ASCII 以外的字元'
-    E_LAYOUTS='找不到 %s'
-    E_LAYOUT_LINE='known-layouts.txt 第 %s 行格式不對: %s'
-    E_LAYOUT_CALLS='known-layouts.txt 第 %s 行的 %s，它的 bytes check.sh 已經當成呼叫解碼'
-    E_LAYOUT_DUP='known-layouts.txt 給了 %s 兩次，或同時給了 commands 和別的 layout'
-    E_LAYOUT_TABLE='known-layouts.txt 用到的表 %s 沒有任何一列'
+    E_HINTS='--hints 格式不對: %s'
+    E_HINT_DUP='--hints 給了 %s 兩次'
     E_JQ='這個版本的 jq 的 @html 或 gsub 和本程式預期的不同（需要 jq 1.7 以上）'
     E_NOT_ADDR='%s 不是地址'
     E_NOT_UINT='%s 不是整數'
@@ -198,7 +187,7 @@ case $WORDS in
     E_FETCH='無法從 Safe Transaction Service 取得交易'
     E_PAGES='服務回傳超過一頁，這個 nonce 的交易太多'
     E_OTHER_NONCE='服務回傳了別的 nonce 的交易'
-    E_USAGE='用法: ./check.sh <nonce> 或 ./check.sh --file <tx.json>'
+    E_USAGE="用法: ./check.sh <nonce> [--hints '<hints>'] 或 ./check.sh --file <tx.json> [--hints '<hints>']"
     E_NO_TX='這個 nonce 沒有交易'
     E_SOURCIFY='無法從 Sourcify 取得 %s 的 ABI（HTTP 狀態 %s）'
     E_RECORDED='%s 沒有錄好的 Sourcify 回答（%s）'
@@ -216,15 +205,13 @@ case $WORDS in
     W_NOT_SPLIT='呼叫 #%s 的 multiSend 不是 Safe 最外層對官方 MultiSend 的 DELEGATECALL，裡面的呼叫沒有拆開'
     W_BYTES='呼叫 #%s 有 %s bytes 的 bytes 引數無法解碼（%s…），裡面可能有資料或呼叫沒顯示'
     W_PART_BYTES='呼叫 #%s 有 %s bytes 的 bytes 部分無法解碼（%s…），裡面可能有資料或呼叫沒顯示'
-    W_LAYOUT='呼叫 #%s 的 %s bytes（%s…）不符合 known-layouts.txt: %s'
+    W_HINTED='呼叫 #%s 的 %s bytes（在 %s，%s…）依 --hints 的讀法顯示：check.sh 只確認各部分能編碼回這些 bytes，不確認合約也這樣讀'
+    W_HINT_UNFIT='呼叫 #%s 的 %s bytes（在 %s，%s…）不符合 --hints: %s'
+    W_HINT_UNUSED='%s 的 hint 沒有用到：這筆交易在那裡沒有 check.sh 會依 hint 讀的 bytes'
     R_DECODE='cast 無法依 %s 解碼'
     R_ENCODE='依 %s 讀出的部分，cast 無法重新編碼'
     R_REENCODE='依 %s 讀出的部分重新編碼成 %s bytes，不是這 %s bytes；第一個不同處在 byte offset %s'
     R_PACKED='%s 佔 %s bytes，不是 %s'
-    R_COUNT='%s 個指令，但有 %s 個元素'
-    R_COMMAND='指令 0x%s 不在表 %s'
-    R_DEPTH='commands 套超過 %s 層'
-    R_OR='；或 '
     W_MS_LEFTOVER='MultiSend 尾端剩 %s bytes，不足一筆呼叫'
     W_MS_OP='MultiSend 的 operation 是 0x%s，不是 0 或 1'
     W_MS_HUGE='MultiSend 的長度欄位大得不合理'
@@ -246,16 +233,15 @@ case $WORDS in
     T_ADDR='地址: '
     T_CALLBACK='Morpho 回呼的 bundle:'
     T_INNER='內含的呼叫資料（bytes 引數）:'
-    T_LAYOUT='引數 %s 依 %s 解讀（known-layouts.txt）:'
-    T_COMMANDS='引數 %s 和 %s 依 commands %s 解讀（known-layouts.txt）:'
-    T_ELEMENT='%s/%s  指令 0x%s %s，依 %s:'
+    T_HINT='%s 依 %s 解讀（--hints）:'
     T_PART='部分 %s:  %s'
     T_SPLIT='MultiSend 拆開如下:'
     T_HEAD='================ Safe 交易 nonce %s ================'
-    T_VERSION='Safe 版本:      %s（%s）'
+    T_VERSION='Safe 版本:      %s'
     T_KNOWN='地址清單:       %s'
-    T_LAYOUTS='layout 清單:    %s'
+    T_HINTS='hints:          %s'
     T_ABIS='ABI 來源:       %s'
+    T_RECORDED='錄好的 Sourcify 回答（CHECK_SOURCIFY_DIR）'
     T_CALLS='呼叫內容（to、value、operation 和 data 本機解碼，不用服務的 dataDecoded）:'
     T_SUMMARY='================ 摘要 nonce %s ================'
     T_LANGUAGE='語言: 繁體中文（LANGUAGE=zh-TW）'
@@ -283,7 +269,7 @@ case $WORDS in
     P_LOG='完整解碼'
     P_LOG_LEAD='check.sh 自己解出的全部內容，含每個地址的名字。很長的值收起來，點開看全文。'
     P_LONG='（%s 字元）'
-    P_FOOTER='這頁由 check.sh 寫出，只用 cast、curl、jq，不含 AI 文字。設定：%s，地址清單：%s。' ;;
+    P_FOOTER='這頁由 check.sh 寫出，只用 cast、curl、jq，不含 AI 文字。' ;;
   *) printf 'Error: LANGUAGE in %s must be en or zh-TW, not %q\n' "$CONFIG" "$WORDS" >&2; exit 1 ;;
 esac
 
@@ -345,28 +331,18 @@ done < "$KNOWN"
 dup=$(printf '%s\n' "$ADDRESSES" | cut -d' ' -f1 | sort | uniq -d)
 [ -z "$dup" ] || die "$E_DUP_ADDR" "$dup"
 
-[ -f "$LAYOUTS_FILE" ] || die "$E_LAYOUTS" "$LAYOUTS_FILE"
-bad=$(LC_ALL=C grep -n '[^ -~]' "$LAYOUTS_FILE" | head -1 | cut -d: -f1) || true
-[ -z "$bad" ] || die "$E_ASCII" "$LAYOUTS_FILE" "$bad"
-
 SIGNATURE='^[A-Za-z_$][A-Za-z0-9_$]*[(][][a-z0-9,()]*[)]$'
 
-# A function's top-level argument types, one per line.
-arg_types() {
-  jq -rn --arg s "$1" '$s | sub("^[^(]*[(]"; "") | sub("[)]$"; "") | explode
-    | reduce .[] as $c ({d: 0, cur: [], out: []};
-        if $c == 44 and .d == 0 then .out += [.cur | implode] | .cur = []
-        else .d += (if $c == 40 then 1 elif $c == 41 then -1 else 0 end) | .cur += [$c] end)
-    | .out + [.cur | implode] | .[]'
-}
 fixed_size() {
   case $1 in
     address) echo 20 ;;
+    bool) echo 1 ;;
     bytes[1-9]|bytes[12][0-9]|bytes3[012]) echo "${1#bytes}" ;;
     uint*) [[ ${1#uint} =~ ^[1-9][0-9]*$ ]] && [ $((${1#uint} % 8)) = 0 ] && [ "${1#uint}" -le 256 ] && echo $((${1#uint} / 8)) ;;
+    int*) fixed_size "u$1" ;;
   esac
 }
-# kind and spec of one layout: abi (<types>), packed <type>..., or commands <table>.
+# kind and spec of one layout: abi (<types>), or packed <type>...
 layout_ok() {
   local kind=$1 t types='^[(][][a-z0-9,()]+[)]$'
   shift
@@ -381,57 +357,42 @@ layout_ok() {
         | if .d < 0 then .ok = false else . end) | .ok and .d == 0' > /dev/null || return 1
       for t in $(printf '%s' "$1" | sed -E 's/\[[0-9]*\]//g' | tr '(),' '   '); do
         case $t in
-          address|bool|string|bytes) ;;
-          bytes*|uint*) [ -n "$(fixed_size "$t")" ] || return 1 ;;
-          int*) [ -n "$(fixed_size "u$t")" ] || return 1 ;;
-          *) return 1 ;;
+          string|bytes) ;;
+          *) [ -n "$(fixed_size "$t")" ] || return 1 ;;
         esac
       done ;;
     packed)
       [ $# -gt 0 ] || return 1
       for t in "$@"; do [ -n "$(fixed_size "$t")" ] || return 1; done ;;
-    commands) [ $# = 1 ] && [[ $1 =~ ^[a-z0-9-]+$ ]] ;;
     *) return 1 ;;
   esac
 }
 
-# known-layouts.txt, as lines "F <function> <argument> <kind> <spec>" and "T <table> <byte> <NAME> <kind> <spec>".
-LAYOUTS="" KEYS="" n=0
-while IFS= read -r line; do
-  n=$((n + 1))
-  case $line in ''|'#'*) continue ;; esac
-  read -r -a w <<<"$line"
-  if [[ ${w[0]:-} =~ ^[a-z0-9-]+:$ ]]; then
-    [ ${#w[@]} -ge 4 ] && [[ ${w[1]} =~ ^0x[0-9a-f]{2}$ ]] && [[ ${w[2]} =~ ^[A-Z0-9_]+$ ]] && layout_ok "${w[@]:3}" \
-      || die "$E_LAYOUT_LINE" "$n" "$line"
-    LAYOUTS="${LAYOUTS}T ${w[0]%:} ${w[*]:1}"$'\n'
-    continue
-  fi
-  [ ${#w[@]} -ge 3 ] && [[ ${w[0]} =~ $SIGNATURE ]] && layout_ok "${w[@]:2}" || die "$E_LAYOUT_LINE" "$n" "$line"
-  sig=${w[0]} arg=${w[1]}
-  case $sig in
-    'multiSend(bytes)'|'multicall((address,bytes,uint256,bool,bytes32)[])'|'morphoSupplyCollateral((address,address,address,address,uint256),uint256,address,bytes)'|'multicall(bytes[])'|'submit(bytes)'|'revoke(bytes)')
-      die "$E_LAYOUT_CALLS" "$n" "$sig" ;;
-  esac
-  types=$(arg_types "$sig")
-  if [ "${w[2]}" = commands ]; then
-    [[ $arg =~ ^([1-9][0-9]*),([1-9][0-9]*)$ ]] && [ "$(sed -n "${BASH_REMATCH[1]}p" <<<"$types")" = bytes ] \
-      && [ "$(sed -n "${BASH_REMATCH[2]}p" <<<"$types")" = 'bytes[]' ] || die "$E_LAYOUT_LINE" "$n" "$line"
-    KEYS="$KEYS$sig#${BASH_REMATCH[1]} commands"$'\n'"$sig#${BASH_REMATCH[2]} commands"$'\n'
-  else
-    [[ $arg =~ ^[1-9][0-9]*$ ]] && [ "$(sed -n "${arg}p" <<<"$types")" = bytes ] || die "$E_LAYOUT_LINE" "$n" "$line"
-    KEYS="$KEYS$sig#$arg ${w[2]}"$'\n'
-  fi
-  LAYOUTS="${LAYOUTS}F ${w[*]}"$'\n'
-done < "$LAYOUTS_FILE"
-dup=$(printf '%s' "$LAYOUTS" | grep '^T ' | cut -d' ' -f2,3 | sort | uniq -d) || true
-[ -z "$dup" ] || die "$E_LAYOUT_DUP" "$dup"
-while IFS= read -r k; do
-  [ -z "$k" ] || [ "$(printf '%s' "$KEYS" | cut -d' ' -f1 | grep -cxF -- "$k")" = 1 ] || die "$E_LAYOUT_DUP" "$k"
-done <<<"$(printf '%s' "$KEYS" | sed -n 's/ commands$//p')"
-for t in $(printf '%s' "$LAYOUTS" | sed -nE 's/.* commands ([a-z0-9-]+)$/\1/p' | sort -u); do
-  printf '%s' "$LAYOUTS" | grep -q "^T $t " || die "$E_LAYOUT_TABLE" "$t"
-done
+# --hints, as lines "<path> abi (<types>)" or "<path> packed <type>...": the bytes at <path>, a 比對清單 call id, -a, the
+# argument's number and .<n> for each step into an item, a component or a part an earlier hint reads, all from 1.
+HINTS="" HINTS_TEXT=""
+parse_hints() {
+  local entries entry path kind types parts shape='^v1( [^ ]+)+$' chars='^[][A-Za-z0-9 ().,=-]+$'
+  local one='^(C[1-9][0-9]*([.][1-9][0-9]*)*-a[1-9][0-9]*([.][1-9][0-9]*)*)=(abi|packed)([(].*[)])$'
+  [[ $1 =~ $shape ]] && [[ $1 =~ $chars ]] || die "$E_HINTS" "$1"
+  read -r -a entries <<<"${1#v1 }"
+  for entry in "${entries[@]}"; do
+    [[ $entry =~ $one ]] || die "$E_HINTS" "$entry"
+    path=${BASH_REMATCH[1]} kind=${BASH_REMATCH[4]} types=${BASH_REMATCH[5]}
+    if [ "$kind" = packed ]; then
+      types=${types#(}
+      IFS=, read -r -a parts <<<"${types%)}"
+      layout_ok packed ${parts[@]+"${parts[@]}"} || die "$E_HINTS" "$entry"
+      types=${parts[*]}
+    else
+      layout_ok abi "$types" || die "$E_HINTS" "$entry"
+    fi
+    [ -z "$(hint_for "$path")" ] || die "$E_HINT_DUP" "$path"
+    HINTS="$HINTS$path $kind $types"$'\n'
+  done
+  HINTS_TEXT=$1
+}
+hint_for() { printf '%s' "$HINTS" | awk -v p="$1" '$1 == p { sub(/^[^ ]+ /, ""); print }'; }
 
 # warn and note take an indent, then a format from the table above and its arguments.
 warn() { local m; m=$(printf "$2" "${@:3}"); echo "$1$W_PREFIX$m"; WARNINGS="$WARNINGS  - $m"$'\n'; }
@@ -562,7 +523,7 @@ show_call() {
 # Decodes the data $2 of a call to the contract $3 with the ABI Sourcify gives for it. $5 is set for the Safe's own
 # DELEGATECALL to an official MultiSend, and $6 is the Bundler3 a bundle call runs from.
 show_data() {
-  local ind=$1 data=$2 id=$3 target=$4 multisend=${5:-} bundler=${6:-} sig json line n=0 args=() reencoded extra blobs opaque b k=0 name calls=""
+  local ind=$1 data=$2 id=$3 target=$4 multisend=${5:-} bundler=${6:-} sig json line n=0 args=() reencoded extra b k=0 name
   if [ "$data" = 0x ]; then echo "${ind}$T_ETH_ONLY"; row "$id-data" data "$V_NONE"; return; fi
   lookup "$target" "$data"
   sig=$SIG
@@ -629,40 +590,25 @@ show_data() {
         group "$id.1" "$G_INNER"
         show_data "$ind    " "0x374f435d${b#0x}" "$id.1" "${bundler:-$target}"
       fi ;;
-    *)
-      case $sig in
-        'multicall(bytes[])'|'submit(bytes)'|'revoke(bytes)')
-          # Each of these bytes is a call the contract makes on itself, so one of any length is decoded or warned about.
-          calls=yes
-          blobs=$(jq -r '.data | .. | strings | ascii_downcase' <<<"$json")
-          opaque=$blobs ;;
-        *)
-          apply_layouts "$ind  " "$sig" "$json"
-          opaque=$(blobs_in "$json" "$LAID") || die "$E_CAST"
-          blobs=$opaque ;;
-      esac
-      for b in $blobs; do
-        if [ -z "$calls" ] && { [ ${#b} = 42 ] || [ ${#b} = 66 ]; }; then continue; fi  # an address or a bytes32 is shown as is, never decoded
-        if [ -n "$calls" ]; then lookup "$target" "$b"; fi
-        if [ -n "$calls" ] && [ -n "$SIG" ]; then
+    'multicall(bytes[])'|'submit(bytes)'|'revoke(bytes)')
+      # Each of these bytes is a call the contract makes on itself, so one of any length is decoded or warned about.
+      for b in $(jq -r '.data | .. | strings | ascii_downcase' <<<"$json"); do
+        lookup "$target" "$b"
+        if [ -n "$SIG" ]; then
           echo "$ind  $T_INNER"
           k=$((k + 1))
           group "$id.$k" "$G_INNER"
           show_data "$ind    " "$b" "$id.$k" "$target"
         else
-          warn "$ind  " "$W_BYTES" "$CALLS" "$(( (${#b} - 2) / 2 ))" "${b:0:10}"
+          warn "$ind  " "$W_BYTES" "$CALLS" "$(size "$b")" "${b:0:10}"
         fi
       done ;;
+    *) read_bytes "$ind  " "$id-a" "$json" < /dev/null ;;
   esac
 }
 
-# Every address in cast's JSON $1, and every string of at least 4 bytes of hex outside the arguments listed in $2.
+# Every address in cast's JSON $1.
 addresses_in() { jq -r '[.data | .. | strings | select(test("^0x[0-9a-fA-F]{40}$")) | ascii_downcase] | unique | .[]' <<<"$1"; }
-blobs_in() {
-  jq -r --arg laid "${2:-}" '($laid | split(" ") | map(select(. != "") | tonumber - 1)) as $laid
-    | .data | to_entries[] | select(.key as $k | $laid | any(.[]; . == $k) | not)
-    | .value | .. | strings | select(test("^0x([0-9a-fA-F]{2}){4,}$")) | ascii_downcase' <<<"$1"
-}
 size() { echo $(( (${#1} - 2) / 2 )); }
 
 # Why the bytes $2 do not fit the layout $1, when their parts encode back to $3.
@@ -677,7 +623,7 @@ differ() {
 # JSON, the parts to look inside: all of an abi layout, only the addresses of a packed one, whose parts are all fixed-size.
 # It fails, setting WHY, unless the parts encode back to exactly these bytes.
 read_layout() {
-  local hex=$1 kind=$2 line t w need=0 at=2 back
+  local hex=$1 kind=$2 line t w need=0 at=2 back pad
   shift 2
   PARTS=() PJSON="" WHY=""
   case $kind in
@@ -692,11 +638,19 @@ read_layout() {
         w=$((2 * $(fixed_size "$t")))
         line=0x${hex:$at:$w}
         at=$((at + w))
-        case $t in address) line=$(cast to-check-sum-address "$line") ;; uint*) line=$(cast to-dec "$line") ;; esac
+        case $t in
+          address) line=$(cast to-check-sum-address "$line") ;;
+          bool) case $line in 0x00) line=false ;; 0x01) line=true ;; esac ;;
+          uint*) line=$(cast to-dec "$line") ;;
+          int*)
+            pad=0
+            if [[ ${line:2:1} =~ [89a-f] ]]; then pad=f; fi
+            line=$(cast abi-decode 'f()(int256)' "0x$(printf '%*s' $((64 - w)) '' | tr ' ' $pad)${line#0x}" | sed -E "$HINT") ;;
+        esac
         PARTS+=("$line")
       done
       PJSON=$(jq -nc '{data: [$ARGS.positional[] | select(test("^0x[0-9a-fA-F]{40}$"))]}' --args "${PARTS[@]}")
-      back=$(cast abi-encode --packed "f($(IFS=,; echo "$*"))" "${PARTS[@]}" 2>/dev/null) || back="" ;;
+      back=$(cast abi-encode --packed "f($(IFS=,; echo "$*"))" -- "${PARTS[@]}" 2>/dev/null) || back="" ;;
   esac
   back=$(lc "$back")
   [ "$back" = "$hex" ] && return
@@ -704,90 +658,38 @@ read_layout() {
   return 1
 }
 
-# Prints PARTS and names the addresses in them; a bytes part other than an address or a bytes32 is a warning.
+# Prints PARTS and names the addresses in them.
 show_parts() {
   local ind=$1 i=0 b
   while [ $i -lt ${#PARTS[@]} ]; do echo "$ind$(printf "$T_PART" $((i + 1)) "${PARTS[$i]}")"; i=$((i + 1)); done
-  local addresses blobs
-  addresses=$(addresses_in "$PJSON") || die "$E_CAST"
-  blobs=$(blobs_in "$PJSON") || die "$E_CAST"
-  for b in $addresses; do show_addr "$ind" "$T_ADDR" "$b"; done
-  for b in $blobs; do
-    if [ ${#b} != 42 ] && [ ${#b} != 66 ]; then warn "$ind" "$W_PART_BYTES" "$CALLS" "$(size "$b")" "${b:0:10}"; fi
-  done
+  b=$(addresses_in "$PJSON") || die "$E_CAST"
+  for b in $b; do show_addr "$ind" "$T_ADDR" "$b"; done
 }
 
-# Bytes $3 that fit no layout keep their warning, and WHY says why.
-unfit() {
-  if [ "$2" = 1 ]; then warn "$1" "$W_BYTES" "$CALLS" "$(size "$3")" "${3:0:10}"; else warn "$1" "$W_PART_BYTES" "$CALLS" "$(size "$3")" "${3:0:10}"; fi
-  warn "$1" "$W_LAYOUT" "$CALLS" "$(size "$3")" "${3:0:10}" "$WHY"
-}
-
-# Byte k of the commands $4 picks, from the table $3, the layout of element k of the JSON array $5. A row whose layout
-# is commands reads its element as abi.encode(bytes, bytes[]) and goes one level deeper, at most MAX_DEPTH levels.
-MAX_DEPTH=2
-show_commands() {
-  local ind=$1 depth=$2 table=$3 cmds elements=$5 count i=0 byte el row
-  cmds=$(lc "${4#0x}")
-  count=$(jq length <<<"$elements")
-  if [ $((${#cmds} / 2)) != "$count" ]; then WHY=$(printf "$R_COUNT" $((${#cmds} / 2)) "$count"); return 1; fi
-  while [ $i -lt "$count" ]; do
-    byte=${cmds:$((2 * i)):2}
-    el=$(jq -r ".[$i]" <<<"$elements" | tr 'A-F' 'a-f')
-    i=$((i + 1))
-    read -r -a row <<<"$(printf '%s' "$LAYOUTS" | awk -v t="$table" -v b="0x$byte" '$1 == "T" && $2 == t && $3 == b' | cut -d' ' -f4-)" || true
-    if [ -z "${row[0]:-}" ]; then WHY=$(printf "$R_COMMAND" "$byte" "$table")
-    elif [ "${row[1]}" = commands ] && [ "$depth" -ge $MAX_DEPTH ]; then WHY=$(printf "$R_DEPTH" $MAX_DEPTH)
-    elif [ "${row[1]}" = commands ]; then
-      if read_layout "$el" abi '(bytes,bytes[])'; then
-        echo "$ind$(printf "$T_ELEMENT" $i "$count" "$byte" "${row[0]}" "${row[*]:1}")"
-        show_commands "$ind  " $((depth + 1)) "${row[2]}" "$(jq -r '.data[0]' <<<"$PJSON")" "$(jq -c '.data[1]' <<<"$PJSON")" && continue
-      fi
-    elif read_layout "$el" "${row[@]:1}"; then
-      echo "$ind$(printf "$T_ELEMENT" $i "$count" "$byte" "${row[0]}" "${row[*]:1}")"
-      show_parts "$ind  "
-      continue
-    fi
-    unfit "$ind" "$depth" "$el"
-  done
-}
-
-# Reads each argument of the function $2 that known-layouts.txt describes. LAID lists the arguments read, whose
-# opaque-bytes warning is dropped; an argument that fits none of its layouts is left to the usual warning, and WHY.
-apply_layouts() {
-  local ind=$1 sig=$2 json=$3 arg lines line value whys w i j
-  LAID=" "
-  for arg in $(printf '%s' "$LAYOUTS" | awk -v s="$sig" '$1 == "F" && $2 == s && !seen[$3]++ {print $3}'); do
-    lines=$(printf '%s' "$LAYOUTS" | awk -v s="$sig" -v a="$arg" '$1 == "F" && $2 == s && $3 == a')
-    if [[ $arg =~ ^([0-9]+),([0-9]+)$ ]]; then
-      i=${BASH_REMATCH[1]} j=${BASH_REMATCH[2]}
-      read -r -a w <<<"$lines"
-      value=$(jq -r ".data[$((i - 1))]" <<<"$json")
-      echo "$ind$(printf "$T_COMMANDS" "$i" "$j" "${w[4]}")"
-      if show_commands "$ind  " 1 "${w[4]}" "$value" "$(jq -c ".data[$((j - 1))]" <<<"$json")"; then
-        LAID="$LAID$i $j "
-      else warn "$ind" "$W_LAYOUT" "$CALLS" "$(size "$value")" "${value:0:10}" "$WHY"
-      fi
-      continue
-    fi
-    value=$(jq -r ".data[$((arg - 1))]" <<<"$json" | tr 'A-F' 'a-f')
-    whys=""
-    while IFS= read -r line; do
-      read -r -a w <<<"$line"
-      if read_layout "$value" "${w[@]:3}" < /dev/null; then
-        echo "$ind$(printf "$T_LAYOUT" "$arg" "${w[*]:3}")"
+# Each bytes value of at least 4 bytes, other than 20 or 32, in cast's JSON $3, the bytes at $2<n>[.<n>...]: read with
+# its hint, or warned about as bytes that cannot be decoded. $4 is set inside bytes a hint read, whose warning covers it.
+read_bytes() {
+  local ind=$1 prefix=$2 json=$3 inside=${4:-} at value layout parts
+  while IFS=$'\t' read -r at value; do
+    case ${#value} in 42|66) continue ;; esac
+    [[ $value =~ ^0x([0-9a-f]{2}){4,}$ ]] || continue
+    read -r -a layout <<<"$(hint_for "$prefix$at")"
+    if [ ${#layout[@]} -gt 0 ]; then
+      USED="$USED$prefix$at"$'\n'
+      if read_layout "$value" "${layout[@]}"; then
+        echo "$ind$(printf "$T_HINT" "$prefix$at" "${layout[*]}")"
+        [ -n "$inside" ] || warn "$ind" "$W_HINTED" "$CALLS" "$(size "$value")" "$prefix$at" "${value:0:10}"
+        parts=$PJSON
         show_parts "$ind  "
-        LAID="$LAID$arg "
-        whys=""
-        break
+        read_bytes "$ind  " "$prefix$at." "$parts" yes
+        continue
       fi
-      whys="$whys${whys:+$R_OR}$WHY"
-    done <<<"$lines"
-    # Bytes the usual rule shows without a warning (shorter than 4 bytes, or an address or a bytes32 long) stay so.
-    if [ -n "$whys" ] && [[ $value =~ ^0x([0-9a-f]{2}){4,}$ ]] && [ ${#value} != 42 ] && [ ${#value} != 66 ]; then
-      warn "$ind" "$W_LAYOUT" "$CALLS" "$(size "$value")" "${value:0:10}" "$whys"
+      warn "$ind" "$W_HINT_UNFIT" "$CALLS" "$(size "$value")" "$prefix$at" "${value:0:10}" "$WHY"
     fi
-  done
+    if [ -z "$inside" ]; then warn "$ind" "$W_BYTES" "$CALLS" "$(size "$value")" "${value:0:10}"
+    else warn "$ind" "$W_PART_BYTES" "$CALLS" "$(size "$value")" "${value:0:10}"
+    fi
+  done < <(jq -r '.data | paths(strings) as $p | [($p | map(. + 1 | tostring) | join(".")), (getpath($p) | ascii_downcase)] | @tsv' <<<"$json")
 }
 
 # Bundler3 runs each Call(to, data, value, skipRevert, callbackHash) with the Safe as initiator.
@@ -835,7 +737,7 @@ split_multisend() {
 
 check_tx() {
   local tx=$1 count=$2 to value data op safe_tx_gas base_gas gas_price gas_token refund nonce encoded message hash service_hash
-  WARNINGS="" NOTES="" CALLS=0
+  WARNINGS="" NOTES="" CALLS=0 USED=""
   : > "$ROWS"
   to=$(jq -r '.to' <<<"$tx");                 is_addr "$to" || die "$E_NOT_ADDR" to
   value=$(jq -r '.value' <<<"$tx");           is_uint "$value" || die "$E_NOT_UINT" value
@@ -864,10 +766,10 @@ check_tx() {
   {
   printf "$T_HEAD\n" "$nonce"
   show_addr "" "Safe:           " "$SAFE"
-  printf "$T_VERSION\n" "$SAFE_VERSION" "$CONFIG"
-  printf "$T_KNOWN\n" "$KNOWN"
-  printf "$T_LAYOUTS\n" "$LAYOUTS_FILE"
-  printf "$T_ABIS\n" "${CHECK_SOURCIFY_DIR:-$SOURCIFY}"
+  printf "$T_VERSION\n" "$SAFE_VERSION"
+  printf "$T_KNOWN\n" "${KNOWN##*/}"
+  printf "$T_HINTS\n" "${HINTS_TEXT:-$V_NONE}"
+  if [ -n "${CHECK_SOURCIFY_DIR:-}" ]; then printf "$T_ABIS\n" "$T_RECORDED"; else printf "$T_ABIS\n" "$SOURCIFY"; fi
   echo "nonce:          $nonce"
   echo "safeTxGas:      $safe_tx_gas"
   echo "baseGas:        $base_gas"
@@ -890,6 +792,9 @@ check_tx() {
   echo
   echo "$T_CALLS"
   show_call "" "$to" "$value" "$op" "$data" top
+  while read -r at _; do
+    if [ -n "$at" ] && ! printf '%s' "$USED" | grep -qxF -- "$at"; then warn "" "$W_HINT_UNUSED" "$at"; fi
+  done <<<"$HINTS"
   } > "$WORK/log"
   group end "$G_END"
   row end-count "$K_COUNT" "$CALLS"
@@ -912,7 +817,7 @@ page() {
   nonce=$(jq -rs '.[0].nonce' "$WORK/txs")
   mkdir -p "$OUT"
   file=$OUT/nonce-$nonce.html
-  jq -rs --arg csp "$CSP" --arg css "$PAGE_CSS" --arg symbols "$PAGE_SYMBOLS" --arg config "$CONFIG" --arg known "$KNOWN" \
+  jq -rs --arg csp "$CSP" --arg css "$PAGE_CSS" --arg symbols "$PAGE_SYMBOLS" \
     --arg lang "$P_LANG" --arg pass "$P_PASS" --arg warn "$P_WARN" --arg note "$P_NOTE" --arg prog "$P_PROG" --arg sub "$P_SUB" \
     --arg many "$P_MANY" --arg checklist "$P_CHECKLIST" --arg nth "$P_NTH" --arg has_warnings "$P_HAS_WARNINGS" \
     --arg no_warnings "$T_NO_WARNINGS" --arg lead "$P_LEAD" --arg language "$P_LANGUAGE" --arg warnings "$P_WARNINGS" \
@@ -984,7 +889,7 @@ page() {
 " + (.log | map(logline) | join("\n")) + "
   </div>
 </section>
-"] | join("")) + "<footer class=\"foot\">\($footer | f(["<code>\($config | clean | @html)</code>", "<code>\($known | clean | @html)</code>"]))</footer>
+"] | join("")) + "<footer class=\"foot\">\($footer)</footer>
 </div>
 </div>
 </body>
@@ -995,7 +900,13 @@ page() {
 }
 
 main() {
-  local txs count i=0 url response
+  local txs count i=0 url response args=()
+  while [ $# -gt 0 ]; do
+    if [ "$1" = --hints ] && [ $# -ge 2 ] && [ -z "$HINTS_TEXT" ]; then parse_hints "$2"; shift 2
+    else args+=("$1"); shift
+    fi
+  done
+  set -- ${args[@]+"${args[@]}"}
   if [ $# -eq 2 ] && [ "$1" = --file ]; then
     txs=$(jq -c 'if has("results") then .results else [.] end' "$2")
   elif [ $# -eq 1 ] && is_uint "$1"; then

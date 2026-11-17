@@ -11,7 +11,8 @@
            函式:      increaseAbsoluteCap(bytes,uint256)   （cast sig = 0xf6f98fd5）
              引數 1:  0x000000000000000000000000000000000000000000000000000000000000004000000000000000000000000079da02d9c638cc9ae925188ad9dc24533798151800000000000000000000000000000000000000000000000000000000000000047468697300000000000000000000000000000000000000000000000000000000
              引數 2:  50000000000
-             引數 1 依 abi (string,address) 解讀（known-layouts.txt）:
+             C1.1.1-a1 依 abi (string,address) 解讀（--hints）:
+             !! 警告: 呼叫 #1 的 128 bytes（在 C1.1.1-a1，0x00000000…）依 --hints 的讀法顯示：check.sh 只確認各部分能編碼回這些 bytes，不確認合約也這樣讀
                部分 1:  "this"
                部分 2:  0x79DA02d9C638cC9ae925188AD9DC245337981518
                地址: 0x79da02d9c638cc9ae925188ad9dc245337981518  Flowmark fGenesis Vault V2 market adapter
@@ -22,7 +23,8 @@
            函式:      increaseRelativeCap(bytes,uint256)   （cast sig = 0x2438525b）
              引數 1:  0x0000000000000000000000000000000000000000000000000000000000000040000000000000000000000000cbb7c0000ab88b473b1f5afd9ef808440eed33bf000000000000000000000000000000000000000000000000000000000000000f636f6c6c61746572616c546f6b656e0000000000000000000000000000000000
              引數 2:  500000000000000000
-             引數 1 依 abi (string,address) 解讀（known-layouts.txt）:
+             C1.2.1-a1 依 abi (string,address) 解讀（--hints）:
+             !! 警告: 呼叫 #1 的 128 bytes（在 C1.2.1-a1，0x00000000…）依 --hints 的讀法顯示：check.sh 只確認各部分能編碼回這些 bytes，不確認合約也這樣讀
                部分 1:  "collateralToken"
                部分 2:  0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf
                地址: 0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf  cbBTC

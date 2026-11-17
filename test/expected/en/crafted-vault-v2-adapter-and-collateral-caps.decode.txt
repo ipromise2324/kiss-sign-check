@@ -11,7 +11,8 @@
            function:  increaseAbsoluteCap(bytes,uint256)   (cast sig = 0xf6f98fd5)
              argument 1:  0x000000000000000000000000000000000000000000000000000000000000004000000000000000000000000079da02d9c638cc9ae925188ad9dc24533798151800000000000000000000000000000000000000000000000000000000000000047468697300000000000000000000000000000000000000000000000000000000
              argument 2:  50000000000
-             argument 1 as abi (string,address) (known-layouts.txt):
+             C1.1.1-a1 as abi (string,address) (--hints):
+             !! Warning: call #1's 128 bytes at C1.1.1-a1 (0x00000000…) are shown as --hints reads them: check.sh checked that the parts encode back to these bytes, not that the contract reads them so
                part 1:  "this"
                part 2:  0x79DA02d9C638cC9ae925188AD9DC245337981518
                address: 0x79da02d9c638cc9ae925188ad9dc245337981518  Flowmark fGenesis Vault V2 market adapter
@@ -22,7 +23,8 @@
            function:  increaseRelativeCap(bytes,uint256)   (cast sig = 0x2438525b)
              argument 1:  0x0000000000000000000000000000000000000000000000000000000000000040000000000000000000000000cbb7c0000ab88b473b1f5afd9ef808440eed33bf000000000000000000000000000000000000000000000000000000000000000f636f6c6c61746572616c546f6b656e0000000000000000000000000000000000
              argument 2:  500000000000000000
-             argument 1 as abi (string,address) (known-layouts.txt):
+             C1.2.1-a1 as abi (string,address) (--hints):
+             !! Warning: call #1's 128 bytes at C1.2.1-a1 (0x00000000…) are shown as --hints reads them: check.sh checked that the parts encode back to these bytes, not that the contract reads them so
                part 1:  "collateralToken"
                part 2:  0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf
                address: 0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf  cbBTC
