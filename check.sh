@@ -77,6 +77,7 @@ case $WORDS in
     W_DELEGATECALL="call #%s is a DELEGATECALL (normal only for the Safe's own call into an official MultiSend): %s"
     W_UNKNOWN_FN="call #%s has a function selector %s that is not in the ABI Sourcify gives for %s"
     W_UNVERIFIED='call #%s goes to %s, which is not verified on Sourcify; its data is shown raw'
+    W_IMPL_UNVERIFIED="call #%s goes to the proxy %s, whose implementation %s is not verified on Sourcify; its data is shown raw"
     W_ADMIN='Safe admin function %s'
     W_UNDECODABLE="call #%s's data cannot be decoded as %s"
     W_NOT_ABI="call #%s's %s data is not standard ABI encoding (its arguments encode back differently); the decode above may be incomplete"
@@ -208,6 +209,7 @@ case $WORDS in
     W_DELEGATECALL='呼叫 #%s 是 DELEGATECALL（只有 Safe 最外層呼叫官方 MultiSend 時才正常）: %s'
     W_UNKNOWN_FN='呼叫 #%s 裡有未知函式 selector %s（不在 Sourcify 給 %s 的 ABI）'
     W_UNVERIFIED='呼叫 #%s 的對象 %s 沒有在 Sourcify 驗證，資料只顯示原始 hex'
+    W_IMPL_UNVERIFIED='呼叫 #%s 的對象是 proxy %s，它的 implementation %s 沒有在 Sourcify 驗證，資料只顯示原始 hex'
     W_ADMIN='Safe 管理函式 %s'
     W_UNDECODABLE='呼叫 #%s 的資料無法依 %s 解碼'
     W_NOT_ABI='呼叫 #%s 的 %s 資料不是標準 ABI 編碼（引數重新編碼後不同），上面的解碼可能不完整'
@@ -457,7 +459,7 @@ sourcify() {
   STATUS=""
   if [ -n "${CHECK_SOURCIFY_DIR:-}" ]; then
     for s in 200 404; do
-      if [ -f "$CHECK_SOURCIFY_DIR/$1.$s.json" ]; then STATUS=$s; cp "$CHECK_SOURCIFY_DIR/$1.$s.json" "$WORK/answer"; fi
+      if [ -f "$CHECK_SOURCIFY_DIR/$1.$s.json" ]; then STATUS=$s; cp "$CHECK_SOURCIFY_DIR/$1.$s.json" "$WORK/answer"; break; fi
     done
     [ -n "$STATUS" ] || die "$E_RECORDED" "$1" "$CHECK_SOURCIFY_DIR"
   else
@@ -468,27 +470,32 @@ sourcify() {
 }
 
 # Each function in the ABI of $WORK/answer, the contract $1's, as "<selector> $1 <signature>"; cast computes the selector.
+# A function with a name or type that is not canonical Solidity ABI is left out, so a row never shows another spelling.
 functions_in() {
   local sig selector
-  jq -r 'def t: if .type | startswith("tuple") then "(" + (.components // [] | map(t) | join(",")) + ")" + (.type | ltrimstr("tuple")) else .type end;
-    .abi[] | select(.type? == "function") | try "\(.name)(\(.inputs // [] | map(t) | join(",")))" | select(explode | all(. > 32 and . < 127))' "$WORK/answer" \
+  jq -r 'def t: if .type | test("^tuple(\\[[0-9]*\\])*$") then "(" + (.components | map(t) | join(",")) + ")" + (.type | ltrimstr("tuple"))
+      elif .type | test("^(address|bool|string|bytes([1-9]|[12][0-9]|3[0-2])?|u?int(8|16|24|32|40|48|56|64|72|80|88|96|104|112|120|128|136|144|152|160|168|176|184|192|200|208|216|224|232|240|248|256))(\\[[0-9]*\\])*$") then .type
+      else error end;
+    .abi[] | select(.type? == "function") | select(.name | strings | test("^[A-Za-z_$][A-Za-z0-9_$]*$")) | try "\(.name)(\(.inputs | map(t) | join(",")))"' "$WORK/answer" \
   | while read -r sig; do
-      [[ $sig =~ $SIGNATURE ]] && selector=$(cast sig "$sig" 2>/dev/null) && echo "$selector $1 $sig"
+      if [[ $sig =~ $SIGNATURE ]] && selector=$(cast sig "$sig" 2>/dev/null); then echo "$selector $1 $sig"; fi
     done
 }
 
 # The functions of the contract $1 into $WORK/abi/<address>: its own ABI's first, then those of each implementation
-# Sourcify reports for it as a proxy. A contract Sourcify has not verified gets the file <address>.none instead.
+# Sourcify reports for it as a proxy. A contract Sourcify has not verified gets the file <address>.none instead, and an
+# implementation it has not verified is listed in <address>.unverified.
 load_abi() {
   local file=$WORK/abi/$1 i
   if [ -f "$file" ] || [ -f "$file.none" ]; then return; fi
   sourcify "$1"
   if [ "$STATUS" = 404 ]; then : > "$file.none"; return; fi
   functions_in "$1" > "$file"
+  : > "$file.unverified"
   for i in $(jq -r '.proxyResolution.implementations[]?.address? | strings | ascii_downcase' "$WORK/answer"); do
     is_addr "$i" || continue
     sourcify "$i"
-    if [ "$STATUS" = 200 ]; then functions_in "$i" >> "$file"; fi
+    if [ "$STATUS" = 200 ]; then functions_in "$i" >> "$file"; else echo "$i" >> "$file.unverified"; fi
   done
 }
 
@@ -563,6 +570,8 @@ show_data() {
     echo "${ind}data:      $data"
     row "$id-data" data "$data" "$N_UNKNOWN_FN"
     if [ -f "$WORK/abi/$target.none" ]; then warn "$ind" "$W_UNVERIFIED" "$CALLS" "$(cast to-check-sum-address "$target")"
+    elif [ -s "$WORK/abi/$target.unverified" ]; then
+      warn "$ind" "$W_IMPL_UNVERIFIED" "$CALLS" "$(cast to-check-sum-address "$target")" "$(cast to-check-sum-address "$(head -1 "$WORK/abi/$target.unverified")")"
     else warn "$ind" "$W_UNKNOWN_FN" "$CALLS" "${data:0:10}" "$(cast to-check-sum-address "$target")"
     fi
     return

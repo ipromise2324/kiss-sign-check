@@ -60,7 +60,7 @@ After you propose the transaction and kiss-sign `verify` prints `MATCH` on your 
 ./check.sh 1566
 ```
 
-It fetches the transactions at that nonce from `api.safe.global`, and the ABI of each contract a call goes to from `sourcify.dev`, both mainnet only and with no API key. Those are its only network requests. `./check.sh --file <tx.json>` reads the transactions from a file instead; it still asks Sourcify for the ABIs. The terminal prints a summary (here run with `CHECK_OUT=out`, so the page path is short):
+It fetches the transactions at that nonce from `api.safe.global`, and the ABI of each contract a call goes to from `sourcify.dev`, both mainnet only and with no API key. Those are its only network requests. `./check.sh --file <tx.json>` reads the transactions from a file instead; it still asks Sourcify for the ABIs. Sourcify thus learns which contracts your pending transaction calls. If Sourcify does not answer, or answers with anything but the contract's ABI or "not verified", `check.sh` stops and writes no page; run it again later. The terminal prints a summary (here run with `CHECK_OUT=out`, so the page path is short):
 
 ![The terminal after ./check.sh 1566: the safeTxHash, 3 calls from the Safe, a note that call #3 has 8 bytes after its arguments, no warnings, and the path of the page](docs/readme/terminal.png)
 
@@ -81,9 +81,9 @@ The page and the terminal are in the language `config` sets, as kiss-sign's page
 
 ### Where the functions come from
 
-Nobody keeps a list of functions. For each call, `check.sh` asks [Sourcify](https://sourcify.dev) for the ABI of the contract the call goes to, computes each function's selector from its signature with `cast sig`, and decodes the call with the function whose selector starts the data. For a proxy it uses the ABI of the implementation Sourcify reports, and a note names that implementation. A contract Sourcify has not verified, or a selector its ABI lacks, leaves the data raw with a warning.
+Nobody keeps a list of functions. For each call, `check.sh` asks [Sourcify](https://sourcify.dev) for the ABI of the contract the call goes to, computes each function's selector from its signature with `cast sig`, and decodes the call with the function whose selector starts the data. For a proxy it uses the ABI of the implementation Sourcify reports, and a note names that implementation. A contract or implementation Sourcify has not verified, or a selector its ABI lacks, leaves the data raw with a warning. When a proxy's own ABI and its implementation's both have the selector, the proxy's is shown.
 
-Calls inside a call are decoded with the ABI of the contract they go to: each call a MultiSend splits into, and each call of a Bundler3 `multicall`, with the ABI of its own `to`; each call of `multicall(bytes[])`, `submit(bytes)` and `revoke(bytes)` with the same contract's, since the contract calls itself; and the bundle Morpho calls back with from `morphoSupplyCollateral` with the Bundler3's.
+Calls inside a call are decoded with the ABI of the contract they go to: each call a MultiSend splits into, and each call of a Bundler3 `multicall`, with the ABI of its own `to`; each call of `multicall(bytes[])`, `submit(bytes)` and `revoke(bytes)` with the same contract's, since the contract calls itself; and the bundle Morpho calls back with from a `morphoSupplyCollateral` inside a Bundler3 `multicall` with that Bundler3's.
 
 Sourcify is trusted only to help you read. Each call's `function` row in the comparison list holds the full signature and the selector, and kiss-sign writes that row from an ABI it proves on its own, by compiling the contract's verified source and comparing the result with the code on chain. If Sourcify gives a wrong ABI, such as an old implementation's or one whose function has another signature with the same selector, the row shows a different signature, or the call shows as one raw `data` row, and the two pages differ. A row that differs means stop, whichever side is wrong.
 

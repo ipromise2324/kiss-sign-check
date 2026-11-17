@@ -304,6 +304,27 @@ out=$(CHECK_CONFIG="$WORK/config" CHECK_KNOWN="$TEST/known-addresses.txt" CHECK_
 if grep -qF "$WORK/no-such-layouts.txt not found" <<<"$out" && ! [ -d "$WORK/out" ]; then printf '%-45s PASS\n' 'layouts: missing file'
 else printf '%-45s FAIL\n' 'layouts: missing file'; FAILED=$((FAILED + 1)); fi
 
+# Answers derived from the recorded ones: an ABI with a function in a type that is not canonical, which is left out, and
+# a proxy whose implementation Sourcify has not verified.
+derived_() {
+  local label=$1 want=$2 status=PASS
+  printf 'SAFE=%s\nSAFE_VERSION=1.4.1\nLANGUAGE=en\n' "$(jq -r .safe "$TEST/fixtures/erc20-transfer-usdc.json")" > "$WORK/config"
+  rm -rf "$WORK/out"
+  out=$(CHECK_CONFIG="$WORK/config" CHECK_KNOWN="$TEST/known-addresses.txt" CHECK_OUT="$WORK/out" CHECK_SOURCIFY_DIR="$WORK/derived" \
+    /bin/bash "$TEST/../check.sh" --file "$TEST/fixtures/erc20-transfer-usdc.json" 2>&1) || true
+  if [ -d "$WORK/out" ]; then out="$out"$'\n'"$(cat "$WORK"/out/*.html)"; else status=FAIL; fi
+  grep -qF -- "$want" <<<"$out" || status=FAIL
+  printf '%-45s %s\n' "Sourcify: $label" "$status"
+  if [ "$status" != PASS ]; then FAILED=$((FAILED + 1)); echo "$out" | tail -5; fi
+}
+USDC=0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48 FIATTOKEN=0x43506849d7c04f9138d1a2050bbf3a0c054402dd
+rm -rf "$WORK/derived"; cp -R "$TEST/sourcify" "$WORK/derived"
+jq -c '.abi += [{type: "function", name: "z", inputs: [{type: "Foo"}]}]' "$TEST/sourcify/$FIATTOKEN.200.json" > "$WORK/derived/$FIATTOKEN.200.json"
+derived_ 'type that is not canonical' 'transfer(address,uint256) 0xa9059cbb'
+jq -c '.proxyResolution.implementations = [{address: "0x1111111111111111111111111111111111111111"}]' "$TEST/sourcify/$USDC.200.json" > "$WORK/derived/$USDC.200.json"
+derived_ 'implementation not verified' \
+  'goes to the proxy 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48, whose implementation 0x1111111111111111111111111111111111111111 is not verified on Sourcify'
+
 # A call whose ABI check.sh cannot get stops it before any page is written.
 rm -rf "$WORK/out"
 mkdir "$WORK/no-answers"
