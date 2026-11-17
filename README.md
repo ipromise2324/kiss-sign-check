@@ -62,7 +62,7 @@ After you propose the transaction and kiss-sign `verify` prints `MATCH` on your 
 
 For a transaction whose template reads `bytes` that no ABI describes, the command carries hints, such as `./check.sh 5 --hints 'v1 C4-a2.1=abi(bytes,bytes[]) ...'`; see [Hints from kiss-sign](#hints-from-kiss-sign).
 
-It fetches the transactions at that nonce from `api.safe.global`, and the ABI of each contract a call goes to from `sourcify.dev`, both mainnet only and with no API key. Those are its only network requests. `./check.sh --file <tx.json>` reads the transactions from a file instead; it still asks Sourcify for the ABIs. Sourcify thus learns which contracts your pending transaction calls. If Sourcify does not answer, or answers with anything but the contract's ABI or "not verified", `check.sh` stops and writes no page; run it again later. The terminal prints a summary (here run with `CHECK_OUT=out`, so the page path is short):
+It fetches the transactions at that nonce from `api.safe.global`, and the ABI of each contract a call goes to from `sourcify.dev`, both mainnet only and with no API key. Those are its only network requests. `./check.sh --file <tx.json>` reads the transactions from a file instead, and refuses a file whose transactions do not all share one nonce; it still asks Sourcify for the ABIs. Sourcify thus learns which contracts your pending transaction calls. If Sourcify does not answer, or answers with anything but the contract's ABI or "not verified", `check.sh` stops and writes no page; run it again later. The terminal prints a summary (here run with `CHECK_OUT=out`, so the page path is short):
 
 ![The terminal after ./check.sh 1566: the safeTxHash, 3 calls from the Safe, a note that USDC is a proxy whose calls are decoded with the ABI of the implementation Sourcify reports, a note that call #3 has 8 bytes after its arguments, no warnings, and the path of the page](docs/readme/terminal.png)
 
@@ -70,7 +70,7 @@ This is a real run, on another Safe's Morpho vault deposit: an `approve` and a B
 
 1. **The hashes.** Compare them with your hardware wallet's screen, character by character: the domain hash and message hash, or the safeTxHash if that is what your wallet shows. If they differ, do not sign.
 2. **The comparison list** (Checklist, or 比對清單 in Traditional Chinese). Compare it with the one on kiss-sign `verify`'s page, row by row, as in the picture above. Every row must be equal, except the name column on the right, where each side names addresses from its own list. If any other row differs, stop.
-3. **The warnings.** Read every `!! Warning` line (`!! 警告` in Traditional Chinese). A warning means look closer, not necessarily stop. A note, such as the 8 bytes above, is a fact of the decode that `check.sh` does not judge.
+3. **The warnings.** Read every `!! Warning` line (`!! 警告` in Traditional Chinese). A warning means look closer, not necessarily stop. A warning about `bytes` it cannot read names the function and contract they go to and the contract's verified source on Etherscan (and its implementation's, for a proxy), as plain text: look up there, or in the protocol's docs, how the contract reads those bytes, and check the addresses and amounts shown. A note, such as the proxy above, is a fact of the decode that `check.sh` does not judge.
 4. **The calls themselves.** Read every call's `to`, amount and recipient against what you meant to do. Equal rows prove only that both computers decoded the same bytes the same way: a work computer that proposed the wrong transaction can still show its true decode.
 
 The page also holds the full decode, with every call and every address named from your list:
@@ -108,19 +108,23 @@ The hints come from the work computer, the one this computer exists not to trust
 - **A reading that fits keeps a warning.** Any bytes whose length is a multiple of 32 also fit as that many `uint256`, which would show a hidden call or address as numbers, and a `packed` hint can cut an address into two parts. So bytes a hint reads always carry a warning, in place of the one that says they cannot be decoded, that they are shown as the hint reads them. A hint adds lines to the full decode; it never changes a row, and never leaves the bytes it reads without a warning. Addresses in the parts are named from your list or warned about as anywhere else, and a `bytes` part no hint reads warns as before.
 - **A hint that names nothing is a warning.** An entry whose path holds no `bytes` in this transaction, or names bytes `check.sh` decodes as calls, is not used, and says so.
 
+Each of these warnings, like the one for bytes no hint reads, names the function and contract the bytes go to and where to read the contract's verified source.
+
 So a wrong or hostile hint leaves the bytes raw with a warning, or shows a reading of them under a warning. The rows, the hashes and every other warning are what `check.sh` finds on its own. Read the parts against what you meant to do; a reading that fits is not a judgment.
 
 ## What it checks
 
 - **The hash, computed locally.** The safeTxHash comes from the same `to`, `value`, `data`, `operation` and gas fields the decode prints. The service's own hash is used only to warn when it differs.
 - **Every call.** Each call inside a MultiSend, each call of a Bundler3 `multicall` with its target and value, each call of `multicall(bytes[])`, `submit(bytes)` and `revoke(bytes)`, and the bundle Morpho calls back with from `morphoSupplyCollateral`. A MultiSend is split into the Safe's calls only when the Safe itself DELEGATECALLs an official MultiSend, and the list must split exactly.
-- **The decode is exact.** The decoded arguments are encoded again and compared with the data. Bytes after the arguments are a note; any other difference is a warning.
+- **The decode is exact.** The decoded arguments are encoded again and compared with the data. Any difference is a warning, bytes after the arguments included: no argument holds them, but a contract can still read them.
 - **Every address is named, or flagged.** Names come only from your `known-addresses.txt`, the built-in MultiSend list, the Safe in your `config` and the zero address.
 - **Warnings for what usually means trouble:**
   - non-zero `safeTxGas`, `baseGas`, `gasPrice`, `gasToken` or `refundReceiver`;
   - a DELEGATECALL other than the Safe's own call into an official MultiSend, or a plain CALL into an official MultiSend;
   - a zero `to` inside a MultiSend;
   - a contract Sourcify has not verified, a function its ABI lacks, an unknown address, or a `bytes` argument or part it cannot decode, bytes it shows as a hint reads them, a hint that does not fit, and a hint it does not use;
+  - a `bytes` value of exactly 20 bytes, shown also as the address it may be, or of exactly 32 bytes, shown also as the address it may be when its first 12 bytes are zero;
+  - bytes after a call's arguments;
   - ETH sent along with a call that has data, from the Safe or a MultiSend (a Bundler3 call's value is shown, not warned on);
   - a Safe admin function anywhere, such as adding an owner;
   - several transactions at one nonce;
@@ -132,7 +136,7 @@ So a wrong or hostile hint leaves the bytes raw with a warning, or shows a readi
 - **It does not judge.** It does not know whether a contract is the protocol's real one, or whether the transaction is what you meant. kiss-sign does that, against your card. `check.sh` only shows what the transaction is, so read its calls against what you meant to do.
 - **It does not read the chain or simulate.** It sees the transaction, not its effects.
 - **It does not prove an ABI.** It decodes with Sourcify's ABI as given; the comparison with kiss-sign's rows is what catches a wrong one.
-- **Bytes that are neither a call it splits nor read by a hint stay opaque.** A CCTP message, a call passed inside some other `bytes` argument, or bytes a template reads but `check.sh` was given no hint for, is shown raw with a warning. Addresses packed inside such bytes are not named. A value of exactly 20 or 32 bytes, or under 4 bytes, is never decoded and gets no warning, since it reads like an address, a `bytes32` or a short field. The exceptions: each call of `multicall(bytes[])`, `submit(bytes)` and `revoke(bytes)` is decoded or warned about whatever its length.
+- **Bytes that are neither a call it splits nor read by a hint stay opaque.** A CCTP message, a call passed inside some other `bytes` argument, or bytes a template reads but `check.sh` was given no hint for, is shown raw with a warning. Addresses packed inside such bytes are not named, except a value of exactly 20 bytes, or of 32 bytes whose first 12 are zero, which the warning shows as the address it may be. A `bytes` value under 4 bytes is never decoded and gets no warning, except each call of `multicall(bytes[])`, `submit(bytes)` and `revoke(bytes)`, which is decoded or warned about whatever its length.
 - **Amounts are raw integers**, in the token's base units, as kiss-sign's comparison list prints them.
 - **Mainnet only**, and Safe versions 1.1.0, 1.1.1, 1.2.0, 1.3.0, 1.4.0, 1.4.1 and 1.5.0.
 

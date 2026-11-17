@@ -13,6 +13,7 @@ KNOWN=${CHECK_KNOWN:-$DIR/known-addresses.txt}
 SOURCIFY=https://sourcify.dev/server/v2/contract/1
 OUT=${CHECK_OUT:-$DIR/out}
 ZERO=0x0000000000000000000000000000000000000000
+SOURCE=https://etherscan.io/address/%s#code
 
 WORDS=en
 if [ -f "$CONFIG" ] && grep -q '^LANGUAGE=' "$CONFIG"; then WORDS=$(sed -n 's/^LANGUAGE=//p' "$CONFIG"); fi
@@ -62,6 +63,7 @@ case $WORDS in
     E_FETCH='cannot fetch the transactions from the Safe Transaction Service'
     E_PAGES='the service returned more than one page: too many transactions at this nonce'
     E_OTHER_NONCE='the service returned transactions of another nonce'
+    E_FILE_NONCES='the file holds transactions of more than one nonce'
     E_USAGE="usage: ./check.sh <nonce> [--hints '<hints>'] or ./check.sh --file <tx.json> [--hints '<hints>']"
     E_NO_TX='no transaction at this nonce'
     E_SOURCIFY="cannot fetch %s's ABI from Sourcify (HTTP status %s)"
@@ -77,9 +79,17 @@ case $WORDS in
     W_ADMIN='Safe admin function %s'
     W_UNDECODABLE="call #%s's data cannot be decoded as %s"
     W_NOT_ABI="call #%s's %s data is not standard ABI encoding (its arguments encode back differently); the decode above may be incomplete"
+    W_EXTRA="call #%s's data has %s bytes after the arguments: 0x%s; no argument holds them, but a contract can still read them"
     W_NOT_SPLIT="call #%s's multiSend is not the Safe's own DELEGATECALL to an official MultiSend; its calls are not split"
     W_BYTES='call #%s has a bytes argument of %s bytes that cannot be decoded (%s…); data or calls inside it may not be shown'
     W_PART_BYTES='call #%s has a bytes part of %s bytes that cannot be decoded (%s…); data or calls inside it may not be shown'
+    W_BYTES_ADDR='call #%s has a %s of 20 bytes, %s, that is not decoded; it may be the address %s (%s)'
+    W_BYTES_PADDED='call #%s has a %s of 32 bytes, %s, that is not decoded; it may be the address %s (%s) left-padded with 12 zero bytes, or another 32-byte value'
+    W_BYTES_WORD='call #%s has a %s of 32 bytes, %s, that is not decoded; it may be a 32-byte value such as a hash or a number'
+    B_ARG='bytes argument'
+    B_PART='bytes part'
+    W_CHECK=". They are in a call to %s on %s: to check them yourself, look up how this contract reads these bytes in its verified source, %s, or in the protocol's docs, and check the addresses and amounts shown here"
+    W_IMPL="%s, and its implementation's, %s"
     W_HINTED="call #%s's %s bytes at %s (%s…) are shown as --hints reads them: check.sh checked that the parts encode back to these bytes, not that the contract reads them so"
     W_HINT_UNFIT="call #%s's %s bytes at %s (%s…) do not fit --hints: %s"
     W_HINT_UNUSED='the hint for %s was not used: this transaction holds no bytes there that check.sh reads by a hint'
@@ -98,7 +108,6 @@ case $WORDS in
     W_HASH_FORMAT="the service's safeTxHash is malformed (not shown)"
     W_HASH_DIFFERS="the service's safeTxHash %s differs from the one computed here"
     O_PREFIX='Note: '
-    O_EXTRA="call #%s's data has %s bytes after the arguments: 0x%s"
     O_PROXY='%s is a proxy: its calls are decoded with the ABI of %s, the implementation Sourcify reports'
     T_ETH_ONLY='data:      none (ETH only)'
     T_VALUE='value:     %s wei (%s ETH)'
@@ -187,6 +196,7 @@ case $WORDS in
     E_FETCH='無法從 Safe Transaction Service 取得交易'
     E_PAGES='服務回傳超過一頁，這個 nonce 的交易太多'
     E_OTHER_NONCE='服務回傳了別的 nonce 的交易'
+    E_FILE_NONCES='檔案裡有不只一個 nonce 的交易'
     E_USAGE="用法: ./check.sh <nonce> [--hints '<hints>'] 或 ./check.sh --file <tx.json> [--hints '<hints>']"
     E_NO_TX='這個 nonce 沒有交易'
     E_SOURCIFY='無法從 Sourcify 取得 %s 的 ABI（HTTP 狀態 %s）'
@@ -202,9 +212,17 @@ case $WORDS in
     W_ADMIN='Safe 管理函式 %s'
     W_UNDECODABLE='呼叫 #%s 的資料無法依 %s 解碼'
     W_NOT_ABI='呼叫 #%s 的 %s 資料不是標準 ABI 編碼（引數重新編碼後不同），上面的解碼可能不完整'
+    W_EXTRA='呼叫 #%s 的資料在引數之後多出 %s bytes: 0x%s；它們不屬於任何引數，但合約仍可能讀取'
     W_NOT_SPLIT='呼叫 #%s 的 multiSend 不是 Safe 最外層對官方 MultiSend 的 DELEGATECALL，裡面的呼叫沒有拆開'
     W_BYTES='呼叫 #%s 有 %s bytes 的 bytes 引數無法解碼（%s…），裡面可能有資料或呼叫沒顯示'
     W_PART_BYTES='呼叫 #%s 有 %s bytes 的 bytes 部分無法解碼（%s…），裡面可能有資料或呼叫沒顯示'
+    W_BYTES_ADDR='呼叫 #%s 有 20 bytes 的 %s沒有解碼（%s），它可能是地址 %s（%s）'
+    W_BYTES_PADDED='呼叫 #%s 有 32 bytes 的 %s沒有解碼（%s），它可能是前面補了 12 個零 byte 的地址 %s（%s），或其他 32 bytes 的值'
+    W_BYTES_WORD='呼叫 #%s 有 32 bytes 的 %s沒有解碼（%s），它可能是 hash 或數字之類的 32 bytes 值'
+    B_ARG='bytes 引數'
+    B_PART='bytes 部分'
+    W_CHECK='。它們在對 %s 的呼叫裡（合約 %s）：要自己確認，請在這個合約驗證過的原始碼 %s 或協議文件查它怎麼讀這些 bytes，並核對這裡顯示的地址和金額'
+    W_IMPL='%s，以及它的 implementation 的 %s'
     W_HINTED='呼叫 #%s 的 %s bytes（在 %s，%s…）依 --hints 的讀法顯示：check.sh 只確認各部分能編碼回這些 bytes，不確認合約也這樣讀'
     W_HINT_UNFIT='呼叫 #%s 的 %s bytes（在 %s，%s…）不符合 --hints: %s'
     W_HINT_UNUSED='%s 的 hint 沒有用到：這筆交易在那裡沒有 check.sh 會依 hint 讀的 bytes'
@@ -223,7 +241,6 @@ case $WORDS in
     W_HASH_FORMAT='服務給的 safeTxHash 格式不對（不顯示）'
     W_HASH_DIFFERS='服務給的 safeTxHash %s 和本機算的不同'
     O_PREFIX='注意: '
-    O_EXTRA='呼叫 #%s 的資料在引數之後多出 %s bytes: 0x%s'
     O_PROXY='%s 是 proxy：它的呼叫依 %s 的 ABI 解碼，這是 Sourcify 回報的 implementation'
     T_ETH_ONLY='data:      無（只轉 ETH）'
     T_VALUE='value:     %s wei（%s ETH）'
@@ -288,6 +305,7 @@ HINT='s/ \[-?[0-9.]+e[0-9]+\]//g'  # cast's "10001000000 [1e10]" -> "10001000000
   && [ "$(cast abi-decode --json 'f()(string,address)' "$(cast abi-encode 'f(string,address)' a $ZERO)" | jq -c .data)" = "[\"a\",\"$ZERO\"]" ] \
   && [ "$(cast abi-decode 'f()(string,(address,uint256))' "$(cast abi-encode 'f(string,(address,uint256))' a "($ZERO,1)")")" = "\"a\""$'\n'"($ZERO, 1)" ] \
   && [ "$(cast abi-encode --packed 'f(bytes1,address,uint32)' 0x01 $ZERO 1)" = "0x01${ZERO#0x}00000001" ] \
+  && [ "$(cast decode-calldata --json 'g(uint256,bytes,uint256)' "$(cast calldata 'f(address,bytes,bytes32)' $ZERO 0x01 0x$(printf '%064d' 1))" | jq -c .data)" = '["0","0x01","1"]' ] \
   || die "$E_CAST"
 [ -f "$CONFIG" ] || die "$E_CONFIG" "$CONFIG"
 [ -f "$KNOWN" ] || die "$E_KNOWN" "$KNOWN"
@@ -526,7 +544,7 @@ show_call() {
 # Decodes the data $2 of a call to the contract $3 with the ABI Sourcify gives for it. $5 is set for the Safe's own
 # DELEGATECALL to an official MultiSend, and $6 is the Bundler3 a bundle call runs from.
 show_data() {
-  local ind=$1 data=$2 id=$3 target=$4 multisend=${5:-} bundler=${6:-} sig json line n=0 args=() reencoded extra b k=0 name
+  local ind=$1 data=$2 id=$3 target=$4 multisend=${5:-} bundler=${6:-} sig json line n=0 args=() reencoded extra b k=0 name to src here
   if [ "$data" = 0x ]; then echo "${ind}$T_ETH_ONLY"; row "$id-data" data "$V_NONE"; return; fi
   lookup "$target" "$data"
   sig=$SIG
@@ -541,7 +559,14 @@ show_data() {
     return
   fi
   echo "${ind}$(printf "$T_FN" "$sig" "${data:0:10}")"
-  if [ "$FROM" != "$target" ]; then note "$ind" "$O_PROXY" "$(cast to-check-sum-address "$target")" "$(cast to-check-sum-address "$FROM")"; fi
+  to=$(cast to-check-sum-address "$target")
+  src=$(printf "$SOURCE" "$to")
+  if [ "$FROM" != "$target" ]; then
+    b=$(cast to-check-sum-address "$FROM")
+    note "$ind" "$O_PROXY" "$to" "$b"
+    src=$(printf "$W_IMPL" "$src" "$(printf "$SOURCE" "$b")")
+  fi
+  here=("$sig" "$to" "$src")
   case ${sig%%(*} in
     addOwnerWithThreshold|removeOwner|swapOwner|changeThreshold|enableModule|disableModule|setGuard|setModuleGuard|setFallbackHandler|approveHash|execTransactionFromModule|setup)
       warn "$ind" "$W_ADMIN" "$sig" ;;
@@ -571,7 +596,7 @@ show_data() {
   if [ -z "$reencoded" ] || [ "${data:0:${#reencoded}}" != "$reencoded" ]; then
     warn "$ind  " "$W_NOT_ABI" "$CALLS" "$sig"
   elif [ -n "$extra" ]; then
-    note "$ind  " "$O_EXTRA" "$CALLS" "$(( ${#extra} / 2 ))" "$extra"
+    warn "$ind  " "$W_EXTRA" "$CALLS" "$(( ${#extra} / 2 ))" "$extra"
     row "$id-extra" "$K_EXTRA" "0x$extra"
   fi
 
@@ -603,13 +628,17 @@ show_data() {
           group "$id.$k" "$G_INNER"
           show_data "$ind    " "$b" "$id.$k" "$target"
         else
-          warn "$ind  " "$W_BYTES" "$CALLS" "$(size "$b")" "${b:0:10}"
+          undecoded "$ind  " "" "$b" "${here[@]}"
         fi
       done ;;
-    *) read_bytes "$ind  " "$id-a" "$json" < /dev/null ;;
+    *)
+      b=$(cast decode-calldata --json "$(as_words "$sig")" "$data") || die "$E_CAST"
+      read_bytes "$ind  " "$id-a" "$b" "" "${here[@]}" < /dev/null ;;
   esac
 }
 
+# The types $1 with every address and bytes1 to bytes32 read as uint256, so only dynamic bytes decode to hex.
+as_words() { sed -E 's/([(,])(address|bytes[0-9]+)/\1uint256/g' <<<"$1"; }
 addresses_in() { jq -r '[.data | .. | strings | select(test("^0x[0-9a-fA-F]{40}$")) | ascii_downcase] | unique | .[]' <<<"$1"; }
 size() { echo $(( (${#1} - 2) / 2 )); }
 
@@ -623,14 +652,16 @@ differ() {
 
 # Reads the bytes $1 with a layout (abi <types> or packed <type>...). PARTS gets one line per part and PJSON, as cast's
 # JSON, the parts to look inside: all of an abi layout, only the addresses of a packed one, whose parts are all fixed-size.
+# BJSON holds the parts again with only the dynamic bytes as hex.
 # It fails, setting WHY, unless the parts encode back to exactly these bytes.
 read_layout() {
   local hex=$1 kind=$2 line t w need=0 at=2 back pad
   shift 2
-  PARTS=() PJSON="" WHY=""
+  PARTS=() PJSON="" BJSON='{"data":[]}' WHY=""
   case $kind in
     abi)
       if ! PJSON=$(cast abi-decode --json "f()$1" "$hex" 2>/dev/null); then WHY=$(printf "$R_DECODE" "abi $1"); return 1; fi
+      BJSON=$(cast abi-decode --json "f()$(as_words "$1")" "$hex") || die "$E_CAST"
       while IFS= read -r line; do PARTS+=("$(printf '%s' "$line" | sed -E "$HINT")"); done < <(cast abi-decode "f()$1" "$hex")
       back=$(cast abi-encode "f$1" "${PARTS[@]}" 2>/dev/null) || back="" ;;
     packed)
@@ -667,29 +698,45 @@ show_parts() {
   for b in $b; do show_addr "$ind" "$T_ADDR" "$b"; done
 }
 
-# A value of 20 or 32 bytes reads like an address or a bytes32 and is shown as is. $4 is set inside bytes a hint read,
-# whose warning already covers them.
+# Warns that the bytes $3 are not decoded; $2 is set for a part of bytes a hint read, and $4 to $6 name the call and
+# its verified source. A value of 20 bytes, or of 32 whose first 12 are zero, is also shown as the address it may be.
+undecoded() {
+  local ind=$1 noun=$B_ARG any=$W_BYTES b=$3 a
+  if [ -n "$2" ]; then noun=$B_PART any=$W_PART_BYTES; fi
+  shift 3
+  case $(size "$b") in
+    20) a=$(cast to-check-sum-address "$b"); warn "$ind" "$W_BYTES_ADDR$W_CHECK" "$CALLS" "$noun" "$b" "$a" "$(named "$a")" "$@" ;;
+    32)
+      if [[ ${b:2:24} =~ ^0+$ ]]; then
+        a=$(cast to-check-sum-address "0x${b:26}"); warn "$ind" "$W_BYTES_PADDED$W_CHECK" "$CALLS" "$noun" "$b" "$a" "$(named "$a")" "$@"
+      else warn "$ind" "$W_BYTES_WORD$W_CHECK" "$CALLS" "$noun" "$b" "$@"
+      fi ;;
+    *) warn "$ind" "$any$W_CHECK" "$CALLS" "$(size "$b")" "${b:0:10}" "$@" ;;
+  esac
+}
+named() { local n; n=$(name_of "$1"); echo "${n:-$N_UNKNOWN}"; }
+
+# Reads each dynamic bytes value in the JSON $3, as as_words decodes it. $4 is set inside bytes a hint read, whose
+# warning already covers them; $5 to $7 name the call and its verified source.
 read_bytes() {
-  local ind=$1 prefix=$2 json=$3 inside=${4:-} at value layout parts
+  local ind=$1 prefix=$2 json=$3 inside=$4 at value layout parts
+  shift 4
   while IFS=$'\t' read -r at value; do
-    case ${#value} in 42|66) continue ;; esac
     [[ $value =~ ^0x([0-9a-f]{2}){4,}$ ]] || continue
     read -r -a layout <<<"$(hint_for "$prefix$at")"
     if [ ${#layout[@]} -gt 0 ]; then
       USED="$USED$prefix$at"$'\n'
       if read_layout "$value" "${layout[@]}"; then
         echo "$ind$(printf "$T_HINT" "$prefix$at" "${layout[*]}")"
-        [ -n "$inside" ] || warn "$ind" "$W_HINTED" "$CALLS" "$(size "$value")" "$prefix$at" "${value:0:10}"
-        parts=$PJSON
+        [ -n "$inside" ] || warn "$ind" "$W_HINTED$W_CHECK" "$CALLS" "$(size "$value")" "$prefix$at" "${value:0:10}" "$@"
+        parts=$BJSON
         show_parts "$ind  "
-        read_bytes "$ind  " "$prefix$at." "$parts" yes
+        read_bytes "$ind  " "$prefix$at." "$parts" yes "$@"
         continue
       fi
       warn "$ind" "$W_HINT_UNFIT" "$CALLS" "$(size "$value")" "$prefix$at" "${value:0:10}" "$WHY"
     fi
-    if [ -z "$inside" ]; then warn "$ind" "$W_BYTES" "$CALLS" "$(size "$value")" "${value:0:10}"
-    else warn "$ind" "$W_PART_BYTES" "$CALLS" "$(size "$value")" "${value:0:10}"
-    fi
+    undecoded "$ind" "$inside" "$value" "$@"
   done < <(jq -r '.data | paths(strings) as $p | [($p | map(. + 1 | tostring) | join(".")), (getpath($p) | ascii_downcase)] | @tsv' <<<"$json")
 }
 
@@ -910,6 +957,7 @@ main() {
   set -- ${args[@]+"${args[@]}"}
   if [ $# -eq 2 ] && [ "$1" = --file ]; then
     txs=$(jq -c 'if has("results") then .results else [.] end' "$2")
+    [ "$(jq '[.[].nonce | tostring] | unique | length' <<<"$txs")" -le 1 ] || die "$E_FILE_NONCES"
   elif [ $# -eq 1 ] && is_uint "$1"; then
     url="https://api.safe.global/tx-service/eth/api/v2/safes/$(cast to-check-sum-address "$SAFE")/multisig-transactions/?nonce=$1"
     response=$(curl -fsS --max-time 30 "$url") || die "$E_FETCH"

@@ -11,7 +11,7 @@
          argument 3:  1000000
          address: 0x9b42102feb9ba61d9793e49239eda0d0c3cb5bd5  Acuto USDC Vault V2 market adapter
          C1.1-a2 as abi ((address,address,address,address,uint256)) (--hints):
-         !! Warning: call #1's 160 bytes at C1.1-a2 (0x00000000…) are shown as --hints reads them: check.sh checked that the parts encode back to these bytes, not that the contract reads them so
+         !! Warning: call #1's 160 bytes at C1.1-a2 (0x00000000…) are shown as --hints reads them: check.sh checked that the parts encode back to these bytes, not that the contract reads them so. They are in a call to deallocate(address,bytes,uint256) on 0x153Bd1abE60104Bd46aa05a27fA12D1346D64A57: to check them yourself, look up how this contract reads these bytes in its verified source, https://etherscan.io/address/0x153Bd1abE60104Bd46aa05a27fA12D1346D64A57#code, or in the protocol's docs, and check the addresses and amounts shown here
            part 1:  (0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48, 0x098697bA3Fee4eA76294C5d6A466a4e3b3E95FE6, 0x5096642B7c7CD82198932f3FADd873EC2fcDeb6d, 0x870aC11D48B15DB9a138Cf899d20F13F79Ba00BC, 860000000000000000)
            address: 0x098697ba3fee4ea76294c5d6a466a4e3b3e95fe6  USP
            address: 0x5096642b7c7cd82198932f3fadd873ec2fcdeb6d  Morpho oracle USP/USDC
@@ -24,7 +24,7 @@
          argument 3:  1000000
          address: 0x9b42102feb9ba61d9793e49239eda0d0c3cb5bd5  Acuto USDC Vault V2 market adapter
          C1.2-a2 as abi ((address,address,address,address,uint256)) (--hints):
-         !! Warning: call #1's 160 bytes at C1.2-a2 (0x00000000…) are shown as --hints reads them: check.sh checked that the parts encode back to these bytes, not that the contract reads them so
+         !! Warning: call #1's 160 bytes at C1.2-a2 (0x00000000…) are shown as --hints reads them: check.sh checked that the parts encode back to these bytes, not that the contract reads them so. They are in a call to allocate(address,bytes,uint256) on 0x153Bd1abE60104Bd46aa05a27fA12D1346D64A57: to check them yourself, look up how this contract reads these bytes in its verified source, https://etherscan.io/address/0x153Bd1abE60104Bd46aa05a27fA12D1346D64A57#code, or in the protocol's docs, and check the addresses and amounts shown here
            part 1:  (0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48, 0x098697bA3Fee4eA76294C5d6A466a4e3b3E95FE6, 0x5096642B7c7CD82198932f3FADd873EC2fcDeb6d, 0x870aC11D48B15DB9a138Cf899d20F13F79Ba00BC, 915000000000000000)
            address: 0x098697ba3fee4ea76294c5d6a466a4e3b3e95fe6  USP
            address: 0x5096642b7c7cd82198932f3fadd873ec2fcdeb6d  Morpho oracle USP/USDC
