@@ -175,20 +175,35 @@ language_() {
   rm -rf "$WORK/out"
   out=$(CHECK_CONFIG="$WORK/config" CHECK_KNOWN="$TEST/known-addresses.txt" CHECK_OUT="$WORK/out" \
     /bin/bash "$TEST/../check.sh" --file "$TEST/fixtures/eth-transfer-null-data.json" 2>&1) || true
-  grep -qF -- "$want" <<<"$out" || status="FAIL (missing: $want)"
-  line=${line%$'\n'}
-  printf '%-45s %s\n' "LANGUAGE ${line:-absent}" "$status"
+  if [ -d "$WORK/out" ] && [ "$want" != refused ]; then out="$out"$'\n'"$(cat "$WORK"/out/*.html)"; fi
+  if [ "$want" = refused ]; then
+    grep -qF 'must be en or zh-TW' <<<"$out" && ! [ -d "$WORK/out" ] || status="FAIL (not refused before anything ran)"
+  else
+    grep -qF -- "$want" <<<"$out" || status="FAIL (missing: $want)"
+  fi
+  printf '%-45s %s\n' "LANGUAGE $([ -n "$line" ] && printf %q "$line" || echo absent)" "$status"
   if [ "$status" != PASS ]; then FAILED=$((FAILED + 1)); echo "$out" | tail -5; fi
 }
 language_ '' 'Language: English (LANGUAGE=en)'
-language_ $'LANGUAGE=fr\n' 'must be en or zh-TW'
-language_ $'LANGUAGE=\n' 'must be en or zh-TW'
-language_ $'LANGUAGE=zh-tw\n' 'must be en or zh-TW'
+language_ $'LANGUAGE=zh-TW\n' '各列是繁體中文（config 的 LANGUAGE=zh-TW）。'
+language_ $'LANGUAGE=fr\n' refused
+language_ $'LANGUAGE=\n' refused
+language_ $'LANGUAGE=zh-tw\n' refused
+language_ $'LANGUAGE=en\r\n' refused
+language_ $'LANGUAGE=zh-TW\nLANGUAGE=zh-TW\n' refused
 
-# Both tables name the same words in the same order.
+# Both tables define the same keys in the same order, each with the same placeholders.
 table_() { sed -n "/^  $1)\$/,/;; *\$/p" "$TEST/../check.sh" | sed -nE 's/^ +([A-Z_]+)=.*/\1/p'; }
 if [ "$(table_ en)" = "$(table_ zh-TW)" ] && [ -n "$(table_ en)" ]; then printf '%-45s PASS\n' 'language tables'
 else printf '%-45s FAIL\n' 'language tables'; FAILED=$((FAILED + 1)); diff <(table_ en) <(table_ zh-TW) || true; fi
+holes_() { sed -n "/^  $1)\$/,/;; *\$/p" "$TEST/../check.sh" | sed -nE 's/^ +([A-Z_]+)=(.*)/\1 \2/p' | while read -r k v; do printf '%s %s\n' "$k" "$(grep -o '%[a-z]' <<<"$v" | tr -d '\n')"; done; }
+if [ "$(holes_ en)" = "$(holes_ zh-TW)" ]; then printf '%-45s PASS\n' 'language placeholders'
+else printf '%-45s FAIL\n' 'language placeholders'; FAILED=$((FAILED + 1)); diff <(holes_ en) <(holes_ zh-TW) || true; fi
+
+# No character that hides or reorders text in check.sh itself, so a reader sees what runs.
+if LC_ALL=C grep -nE $'\xe2\x80[\x8b-\x8f\xa8-\xae]|\xe2\x81[\xa0-\xaf]|\xef\xbb\xbf|\xc2\xad' "$TEST/../check.sh"; then
+  printf '%-45s FAIL\n' 'check.sh holds no hidden characters'; FAILED=$((FAILED + 1))
+else printf '%-45s PASS\n' 'check.sh holds no hidden characters'; fi
 
 if [ "$FAILED" -gt 0 ]; then echo "$FAILED 個測試失敗"; exit 1; fi
 echo "全部通過"

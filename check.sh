@@ -11,12 +11,12 @@ KNOWN=${CHECK_KNOWN:-$DIR/known-addresses.txt}
 OUT=${CHECK_OUT:-$DIR/out}
 ZERO=0x0000000000000000000000000000000000000000
 
-LANGUAGE=en
-if [ -f "$CONFIG" ] && grep -q '^LANGUAGE=' "$CONFIG"; then LANGUAGE=$(sed -n 's/^LANGUAGE=//p' "$CONFIG"); fi
+WORDS=en
+if [ -f "$CONFIG" ] && grep -q '^LANGUAGE=' "$CONFIG"; then WORDS=$(sed -n 's/^LANGUAGE=//p' "$CONFIG"); fi
 
 # Every fixed word this script writes, one table per language. The 比對清單's words (G_, K_, V_ and F_) must be,
 # word for word, the ones kiss-sign writes for the same language (its src/verify/checklist.ts), or the rows differ.
-case $LANGUAGE in
+case $WORDS in
   en)
     G_TX='Transaction'
     G_CALL='Call #%s'
@@ -113,7 +113,7 @@ case $LANGUAGE in
     P_MANY='%s different transactions: sign only the one whose safeTxHash the hardware wallet shows'
     P_CHECKLIST='Checklist'
     P_NTH=' (%s of %s)'
-    P_HAS_WARNINGS='%s warnings; read them before signing'
+    P_HAS_WARNINGS='Warnings: %s. Read them before signing.'
     P_LEAD="Compare each row with the same row of the kiss-sign verify page: the row id, the field and the value must be exactly the same. The last column is each page's own names; do not compare it. Also compare the safeTxHash, domain hash and message hash character by character with the hardware wallet."
     P_LANGUAGE='The rows are in English (LANGUAGE=en in config). kiss-sign must be set to English too, or the rows differ.'
     P_WARNINGS='Warnings'
@@ -229,7 +229,7 @@ case $LANGUAGE in
     P_LOG_LEAD='check.sh 自己解出的全部內容，含每個地址的名字。很長的值收起來，點開看全文。'
     P_LONG='（%s 字元）'
     P_FOOTER='這頁由 check.sh 寫出，只用 cast、curl、jq，不含 AI 文字。設定：%s，地址清單：%s。' ;;
-  *) echo "Error: LANGUAGE in $CONFIG must be en or zh-TW" >&2; exit 1 ;;
+  *) printf 'Error: LANGUAGE in %s must be en or zh-TW, not %q\n' "$CONFIG" "$WORDS" >&2; exit 1 ;;
 esac
 
 die() { printf "$E_PREFIX$1\n" "${@:2}" >&2; exit 1; }
@@ -314,7 +314,7 @@ show_addr() {
   if [ -n "$name" ]; then echo "$ind$label$address  $name"; else echo "$ind$label$address"; warn "$ind" "$W_UNKNOWN_ADDR" "$address"; fi
 }
 
-CLEAN='def clean: gsub("[\u0001-\u001f\u007f-\u009f­͏؜ᅟᅠ᠎​-‏ -‮⁠-⁯ㅤ︀-️﻿ﾠ￹-￻󠀀-󠁿󠄀-󠇯]"; "�");'
+CLEAN='def clean: gsub("[\u0001-\u001f\u007f-\u009f\u00ad\u034f\u061c\u115f\u1160\u180e\u200b-\u200f\u2028-\u202e\u2060-\u206f\u3164\ufe00-\ufe0f\ufeff\uffa0\ufff9-\ufffb\udb40\udc00-\udb40\udc7f\udb40\udd00-\udb40\uddef]"; "\ufffd");'
 [ "$(jq -rn --arg v $'<\'x\xe2\x80\xae' "$CLEAN"'$v | clean | @html')" = $'&lt;&apos;x\xef\xbf\xbd' ] || die "$E_JQ"
 group() { jq -nc --arg id "$1" --arg t "$2" "$CLEAN"'{id: ($id|clean), title: ($t|clean)}' >> "$ROWS"; }
 
