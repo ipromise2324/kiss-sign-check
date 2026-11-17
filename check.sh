@@ -145,7 +145,7 @@ show_call() {
 }
 
 show_data() {
-  local ind=$1 data=$2 id=$3 multisend=${4:-} sig json line n=0 args=() reencoded extra addresses blobs b k=0 name
+  local ind=$1 data=$2 id=$3 multisend=${4:-} sig json line n=0 args=() reencoded extra addresses blobs b k=0 name calls=""
   if [ "$data" = 0x ]; then echo "${ind}data:      無（只轉 ETH）"; row "$id-data" data 無; return; fi
   sig=$(printf '%s' "$FUNCTIONS" | grep "^${data:0:10} " | cut -d' ' -f2- || true)
   if [ -z "$sig" ]; then
@@ -193,14 +193,14 @@ show_data() {
   blobs=$(jq -r '.data | .. | strings | select(test("^0x([0-9a-fA-F]{2}){4,}$")) | ascii_downcase' <<<"$json")
   for b in $addresses; do show_addr "$ind  " "地址: " "$b"; done
 
-  case ${sig%%(*} in
-    multiSend)
+  case $sig in
+    'multiSend(bytes)')
       # Only the Safe's own DELEGATECALL to an official MultiSend makes the packed calls the Safe's calls.
       if [ -n "$multisend" ]; then split_multisend "$ind" "$(jq -r '.data[0]' <<<"$json" | tr 'A-F' 'a-f')"
       else warn "$ind  " "呼叫 #$CALLS 的 multiSend 不是 Safe 最外層對官方 MultiSend 的 DELEGATECALL，裡面的呼叫沒有拆開"
       fi ;;
-    multicall) b=$(jq -c '.data[0]' <<<"$json"); show_bundle "$ind  " "$b" "$id" ;;
-    morphoSupplyCollateral)
+    'multicall((address,bytes,uint256,bool,bytes32)[])') b=$(jq -c '.data[0]' <<<"$json"); show_bundle "$ind  " "$b" "$id" ;;
+    'morphoSupplyCollateral((address,address,address,address,uint256),uint256,address,bytes)')
       # Morpho calls Bundler3 back with this data, abi.encode(Call[]): a bundle that runs for the Safe.
       b=$(jq -r '.data[3]' <<<"$json")
       if [ "$b" != 0x ]; then
@@ -209,8 +209,14 @@ show_data() {
         show_data "$ind    " "0x374f435d${b#0x}" "$id.1"
       fi ;;
     *)
+      case $sig in
+        'multicall(bytes[])'|'submit(bytes)'|'revoke(bytes)')
+          # Each of these bytes is a call the contract makes on itself, so one of any length is decoded or warned about.
+          calls=yes
+          blobs=$(jq -r '.data | .. | strings | ascii_downcase' <<<"$json") ;;
+      esac
       for b in $blobs; do
-        if [ ${#b} = 42 ] || [ ${#b} = 66 ]; then continue; fi  # an address or a bytes32 is shown as is, never decoded
+        if [ -z "$calls" ] && { [ ${#b} = 42 ] || [ ${#b} = 66 ]; }; then continue; fi  # an address or a bytes32 is shown as is, never decoded
         if printf '%s' "$FUNCTIONS" | grep -q "^${b:0:10} "; then
           echo "$ind  內含的呼叫資料（bytes 引數）:"
           k=$((k + 1))
