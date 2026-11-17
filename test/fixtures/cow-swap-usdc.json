@@ -1,0 +1,79 @@
+{
+  "safe": "0xb18D844f3578EaD22791B5c67F7B6aF93266804E",
+  "to": "0x9008D19f58AAbD9eD0D60971565AA8510560ab41",
+  "value": "0",
+  "data": "0xec6cb13f000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000038c45125ce75112738d7cde40eef1321f070e792066f9211fd0c4eb1616c309b64b18d844f3578ead22791b5c67f7b6af93266804e6ae5533c0000000000000000",
+  "operation": 0,
+  "gasToken": "0x0000000000000000000000000000000000000000",
+  "safeTxGas": "0",
+  "baseGas": "0",
+  "gasPrice": "0",
+  "refundReceiver": "0x0000000000000000000000000000000000000000",
+  "nonce": "264",
+  "executionDate": "2026-10-31T02:08:35Z",
+  "submissionDate": "2026-10-31T02:04:30.518727Z",
+  "modified": "2026-10-31T02:08:35Z",
+  "blockNumber": 26309658,
+  "transactionHash": "0xaaca56f560d933d94099a765d98df2fee0ad1671afd27ec53c453163be0e6987",
+  "safeTxHash": "0x8716f2b4b77fab0162bb87c9f95b49f19ef16a14306677c71dbba39c759c2b66",
+  "proposer": "0x4007CE2083c7F3E18097aeB3A39bb8eC149a341d",
+  "proposedByDelegate": null,
+  "executor": "0xefC0e701A824943b469a694aC564Aa1efF7Ab7dd",
+  "isExecuted": true,
+  "isSuccessful": true,
+  "ethGasPrice": "56884363",
+  "maxFeePerGas": "56973680",
+  "maxPriorityFeePerGas": "4920286",
+  "gasUsed": 96650,
+  "fee": "5497873683950",
+  "payment": "0",
+  "origin": "{\"url\": \"https://apps-portal.safe.global/wallet-connect\", \"name\": \"CoW Swap | The smartest way to trade cryptocurrencies\"}",
+  "dataDecoded": {
+    "method": "setPreSignature",
+    "parameters": [
+      {
+        "name": "orderUid",
+        "type": "bytes",
+        "value": "0xc45125ce75112738d7cde40eef1321f070e792066f9211fd0c4eb1616c309b64b18d844f3578ead22791b5c67f7b6af93266804e6ae5533c"
+      },
+      {
+        "name": "signed",
+        "type": "bool",
+        "value": "True"
+      }
+    ]
+  },
+  "confirmationsRequired": 4,
+  "confirmations": [
+    {
+      "owner": "0x4007CE2083c7F3E18097aeB3A39bb8eC149a341d",
+      "submissionDate": "2026-10-31T02:04:30.518727Z",
+      "transactionHash": null,
+      "signature": "0x40fc3238af3bdf976a8c0d15f2abb432b383ff5eaac751bd74c91ffe6342c74037deb0d51e8513bbba98de652428349ddf4c622e7c21aeb2f51f51122d72c8401c",
+      "signatureType": "EOA"
+    },
+    {
+      "owner": "0x02D179341F2CB935C510b63eaFe53A24c88BB2ee",
+      "submissionDate": "2026-10-31T02:07:32.656353Z",
+      "transactionHash": null,
+      "signature": "0xa9fb37fe23a96e9eef7a46d9ccfe5043dca1eb2c6ec7537affb5110a36b70a9a3727fd2f5f813b33dfce2d5c6e1686ea3222f9500e1b1a0e20a4b34bc71bc2a51b",
+      "signatureType": "EOA"
+    },
+    {
+      "owner": "0xbF18900135Dba8A5e680132535aCb7b64ed94C80",
+      "submissionDate": "2026-10-31T02:07:45.387801Z",
+      "transactionHash": null,
+      "signature": "0xb533af2fc2268891e26b37a0836575c367ae9b85879c3c93ef5c2b728519010a3136993d8064798681ca14ea6765d11e46d065d778b362798deb862cb17710891c",
+      "signatureType": "EOA"
+    },
+    {
+      "owner": "0xefC0e701A824943b469a694aC564Aa1efF7Ab7dd",
+      "submissionDate": "2026-10-31T02:08:35Z",
+      "transactionHash": null,
+      "signature": "0x000000000000000000000000efc0e701a824943b469a694ac564aa1eff7ab7dd000000000000000000000000000000000000000000000000000000000000000001",
+      "signatureType": "APPROVED_HASH"
+    }
+  ],
+  "trusted": true,
+  "signatures": "0xa9fb37fe23a96e9eef7a46d9ccfe5043dca1eb2c6ec7537affb5110a36b70a9a3727fd2f5f813b33dfce2d5c6e1686ea3222f9500e1b1a0e20a4b34bc71bc2a51b40fc3238af3bdf976a8c0d15f2abb432b383ff5eaac751bd74c91ffe6342c74037deb0d51e8513bbba98de652428349ddf4c622e7c21aeb2f51f51122d72c8401cb533af2fc2268891e26b37a0836575c367ae9b85879c3c93ef5c2b728519010a3136993d8064798681ca14ea6765d11e46d065d778b362798deb862cb17710891c000000000000000000000000efc0e701a824943b469a694ac564aa1eff7ab7dd000000000000000000000000000000000000000000000000000000000000000001"
+}

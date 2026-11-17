@@ -55,9 +55,17 @@ case_ morpho-set-authorization 1.4.1 0x84ef6bee2a4aa95ad1c0ba8e9fa9b0ad2cbae3364
 case_ morpho-borrow-set-authorization 1.4.1 0x0aa75b0fa21bb435a0a63eafa003e7b546a4c0b6d9172bf594383b4c0e65037e \
   '+setAuthorization(address,bool)' '+morphoSupplyCollateral' '+morphoBorrow' '+沒有警告'
 case_ permit2-unlimited-approval 1.4.1 0x5ddf364b6199c45b5bf4e631a52083d125bfadf538a3647cb050dc244b9fea2e \
-  '+approve(address,address,uint160,uint48)' '+裡有未知函式 selector 0xac9650d8'
+  '+approve(address,address,uint160,uint48)' '+multicall(bytes[])' '+有 868 bytes 的 bytes 引數無法解碼（0xdd46508f…）'
 case_ cctp-receive-then-call 1.4.1 0xaffef7919a235fa81f6ddfcd5b140eb0a56f618b47d17a124fc95fa9735f002c \
   '+receiveMessage(bytes,bytes)' '+有 248 bytes 的 bytes 引數無法解碼' '+裡有未知函式 selector 0xbcd7e46c'
+case_ cow-swap-usdc 1.3.0 0x8716f2b4b77fab0162bb87c9f95b49f19ef16a14306677c71dbba39c759c2b66 \
+  '+setPreSignature(bytes,bool)' '+有 56 bytes 的 bytes 引數無法解碼'
+case_ uniswap-swap-approve-usdt-usdc 1.4.1 0xdad1c654fc116f37f62b76f974fd4dc865dbe58387204cbc2355babd99c5de49 \
+  '+execute(bytes,bytes[],uint256)' '+在引數之後多出 22 bytes' '+Safe 發出的呼叫數: 4' '-不認識的地址'
+case_ vault-v2-cap-submit-flowmark 1.4.1 0x930ff75c6abf5ea3f1521515052823baa0ebca9034ec0527ddf48fbfae16721e \
+  '+multicall(bytes[])' '+submit(bytes)' '+increaseAbsoluteCap(bytes,uint256)' '+increaseRelativeCap(bytes,uint256)' '-Bundler3' '-不認識的地址'
+case_ vault-v2-reallocate-back 1.4.1 0x716904f002c83c8a16d21795776ee58142b1eea5bda59b885625dc176a41517b \
+  '+deallocate(address,bytes,uint256)' '+allocate(address,bytes,uint256)' '-不認識的地址'
 
 case_ hostile-multisend-leftover-bytes 1.4.1 - '+MultiSend 尾端剩 32 bytes，不足一筆呼叫'
 case_ hostile-multisend-length-too-long 1.4.1 - '+MultiSend 的長度欄位說 100 bytes，但只剩 68 bytes'
@@ -77,6 +85,7 @@ case_ hostile-big-value 1.4.1 - '+錯誤: 無法編碼這筆交易的欄位'
 case_ hostile-multisend-plain-call 1.4.1 - '+multiSend 不是 Safe 最外層對官方 MultiSend 的 DELEGATECALL' '+Safe 發出的呼叫數: 1' '-呼叫 #2'
 case_ hostile-multisend-in-bundle 1.4.1 - '+multiSend 不是 Safe 最外層對官方 MultiSend 的 DELEGATECALL' '+Safe 發出的呼叫數: 1' '-呼叫 #2'
 case_ hostile-selector-prefix-address 1.4.1 - '-內含的呼叫' '-無法依'
+case_ hostile-short-call-in-multicall 1.4.1 - '+multicall(bytes[])' '+有 32 bytes 的 bytes 引數無法解碼（0x715018a6…）' '-沒有警告'
 
 # The 比對清單 of real transactions, pinned: kiss-sign's test compares its own block with this same file.
 # Each program's name column is left out, since each names addresses from its own list.
@@ -93,6 +102,14 @@ case_ eth-transfer-null-data 1.3.0 0xd3ac54144c716e0044b461c068ffd19742c022b265b
 checklist_ eth-transfer-null-data
 case_ merkl-claim-two-tokens 1.3.0 0x1b1774a52d845dce2ea6faac3ab5dd01747adda3af6838dde7f4f4107abdd59a
 checklist_ merkl-claim-two-tokens
+case_ cow-swap-usdc 1.3.0 0x8716f2b4b77fab0162bb87c9f95b49f19ef16a14306677c71dbba39c759c2b66
+checklist_ cow-swap-usdc
+case_ uniswap-swap-approve-usdt-usdc 1.4.1 0xdad1c654fc116f37f62b76f974fd4dc865dbe58387204cbc2355babd99c5de49
+checklist_ uniswap-swap-approve-usdt-usdc
+case_ vault-v2-cap-submit-flowmark 1.4.1 0x930ff75c6abf5ea3f1521515052823baa0ebca9034ec0527ddf48fbfae16721e
+checklist_ vault-v2-cap-submit-flowmark
+case_ vault-v2-reallocate-back 1.4.1 0x716904f002c83c8a16d21795776ee58142b1eea5bda59b885625dc176a41517b
+checklist_ vault-v2-reallocate-back
 
 hostile_page_() {
   local name=$1 page status=PASS

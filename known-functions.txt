@@ -22,8 +22,22 @@ vaultBundlesV1Deposit(address,uint256,uint256,(uint8,bytes),uint256,address,uint
 blueBundlesV1Supply((address,address,address,address,uint256),uint256,(uint8,bytes),uint256,address,uint256)
 # Uniswap Permit2
 approve(address,address,uint160,uint48)
+# Uniswap Universal Router
+execute(bytes,bytes[],uint256)
+# CoW Protocol GPv2Settlement
+setPreSignature(bytes,bool)
 # Morpho Blue
 setAuthorization(address,bool)
+# Morpho Vault V2
+multicall(bytes[])
+submit(bytes)
+revoke(bytes)
+increaseAbsoluteCap(bytes,uint256)
+increaseRelativeCap(bytes,uint256)
+decreaseAbsoluteCap(bytes,uint256)
+decreaseRelativeCap(bytes,uint256)
+allocate(address,bytes,uint256)
+deallocate(address,bytes,uint256)
 # Morpho URD
 claim(address,address,uint256,bytes32[])
 # Merkl

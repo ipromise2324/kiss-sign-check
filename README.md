@@ -65,7 +65,7 @@ It fetches the transactions at that nonce from `api.safe.global`, mainnet only a
 This is a real run, on another Safe's Morpho vault deposit: an `approve` and a Bundler3 `multicall`, batched through MultiSend. Open the page and check four things:
 
 1. **The hashes.** Compare them with your hardware wallet's screen, character by character: the domain hash and message hash, or the safeTxHash if that is what your wallet shows. If they differ, do not sign.
-2. **The 比對清單 (comparison list).** Compare it with the one on kiss-sign `verify`'s page, row by row, as in the picture above. Every row must be equal, except the name column on the right, where each side names addresses from its own list, and the rows of a call `check.sh` cannot decode yet (see [Teach it a new function](#teach-it-a-new-function)). If any other row differs, stop.
+2. **The 比對清單 (comparison list).** Compare it with the one on kiss-sign `verify`'s page, row by row, as in the picture above. Every row must be equal, except the name column on the right, where each side names addresses from its own list. If any other row differs, stop.
 3. **The warnings.** Read every `!! 警告`. A warning means look closer, not necessarily stop. A note, such as the 8 bytes above, is a fact of the decode that `check.sh` does not judge.
 4. **The calls themselves.** Read every call's `to`, amount and recipient against what you meant to do. Equal rows prove only that both computers decoded the same bytes the same way: a work computer that proposed the wrong transaction can still show its true decode.
 
@@ -75,13 +75,13 @@ The page also holds the full decode, with every call and every address named fro
 
 If several transactions share the nonce, the summary and the page show each one with its hash. Sign only the one whose hashes your wallet shows.
 
-The page and the terminal are in Traditional Chinese. The page runs no script and loads nothing from outside. Its accent colour differs from kiss-sign's, so the two pages are not mistaken for each other side by side. The row format is in [docs/checklist.md](docs/checklist.md).
+The page and the terminal are in Traditional Chinese. kiss-sign's own page is in English unless its signer chose Traditional Chinese, but its comparison list keeps the same Traditional Chinese row labels, so the two lists still compare byte for byte. The page runs no script and loads nothing from outside. Its accent colour differs from kiss-sign's, so the two pages are not mistaken for each other side by side. The row format is in [docs/checklist.md](docs/checklist.md).
 
 ### Teach it a new function
 
-`check.sh` decodes only the functions in [`known-functions.txt`](known-functions.txt), one signature per line, and computes each selector with `cast sig`. It never guesses a function or looks one up online. Today the list covers ERC-20, ERC-4626 vaults, Safe MultiSend, Morpho Bundler3 and its adapters, Morpho Blue's `setAuthorization` and Morpho's Universal Rewards Distributor's `claim`, Uniswap Permit2's `approve`, Merkl and Fluid claims, CCTP's `receiveMessage`, and the Safe's own admin functions.
+`check.sh` decodes only the functions in [`known-functions.txt`](known-functions.txt), one signature per line, and computes each selector with `cast sig`. It never guesses a function or looks one up online. Today the list covers ERC-20, ERC-4626 vaults, Safe MultiSend, Morpho Bundler3 and its adapters, Uniswap Permit2's `approve` and the Universal Router's `execute`, CoW's `setPreSignature`, Morpho Blue's `setAuthorization`, Morpho Vault V2's admin functions (`multicall`, `submit`, `revoke`, the cap changes, `allocate` and `deallocate`), Morpho's Universal Rewards Distributor's `claim`, Merkl and Fluid claims, CCTP's `receiveMessage`, and the Safe's own admin functions. A decoder is matched by the full signature, so Vault V2's `multicall(bytes[])` and Bundler3's `multicall` are told apart.
 
-It does not yet hold the Uniswap router's `execute(bytes,bytes[],uint256)`, CoW's `setPreSignature(bytes,bool)` or a Morpho Vault V2's `multicall(bytes[])`, which kiss-sign's Uniswap, CoW and Vault V2 templates call. For those transactions `check.sh` shows the call as raw data with an unknown-function warning, so its rows differ from `verify`'s. Adding a signature from the protocol's verified source, reviewed like any other change, makes its arguments decode and the rows comparable. A Vault V2's `multicall(bytes[])` also needs a change to `check.sh`, which today reads every `multicall` as Morpho Bundler3's. It decodes only the arguments: a Uniswap swap's inputs stay raw bytes, and a CoW order's tokens, receiver and amounts are not in the transaction at all, only its UID, which still shows as undecodable bytes with a warning, so those rest on kiss-sign's checks.
+Each kiss-sign template's calls decode, so their rows match `verify`'s. Some bytes inside them are not a call, and each gets one warning while the rows still match: the market data inside a Vault V2 cap's `idData`, a Uniswap swap's inputs, which hold its recipient and minimum out, and a CoW order's UID, which names the order only by its digest. What those bytes say rests on kiss-sign's checks.
 
 ## What it checks
 
@@ -104,7 +104,7 @@ It does not yet hold the Uniswap router's `execute(bytes,bytes[],uint256)`, CoW'
 
 - **It does not judge.** It does not know whether a contract is the protocol's real one, or whether the transaction is what you meant. kiss-sign does that, against your card. `check.sh` only shows what the transaction is, so read its calls against what you meant to do.
 - **It does not read the chain or simulate.** It sees the transaction, not its effects.
-- **Bytes that are not a known call stay opaque.** A CCTP message is shown raw with a warning, and so would a Uniswap router's inputs, which hold the swap's recipient and minimum out, even with `execute` in the list. Addresses packed inside such bytes are not named. A value of exactly 20 or 32 bytes, or under 4 bytes, is never decoded and gets no warning, since it reads like an address, a `bytes32` or a short field.
+- **Bytes that are not a known call stay opaque.** A CCTP message, a Uniswap router's inputs and a CoW order's UID are shown raw with a warning. Addresses packed inside such bytes are not named. A value of exactly 20 or 32 bytes, or under 4 bytes, is never decoded and gets no warning, since it reads like an address, a `bytes32` or a short field. The exception is each call of `multicall(bytes[])`, `submit(bytes)` and `revoke(bytes)`, which is decoded or warned about whatever its length.
 - **Amounts are raw integers**, in the token's base units, as kiss-sign's comparison list prints them.
 - **Mainnet only**, and Safe versions 1.1.0, 1.1.1, 1.2.0, 1.3.0, 1.4.0, 1.4.1 and 1.5.0.
 
@@ -114,7 +114,7 @@ It does not yet hold the Uniswap router's `execute(bytes,bytes[],uint256)`, CoW'
 /bin/bash test/run.sh
 ```
 
-[`test/fixtures/`](test/fixtures/) holds real transactions of other Safes, recorded by kiss-sign, and crafted hostile cases (`hostile-*`). Each real case must reproduce its recorded on-chain safeTxHash. The tests read both the terminal and the page, compare three comparison lists with [`test/expected/`](test/expected/), which kiss-sign's own tests also pin, and check that hostile text in the service's fields is never shown, and that the same text as an address-list name is shown escaped, with its bidi and control characters replaced. `test/known-addresses.txt` is for the tests only; do not sign with it.
+[`test/fixtures/`](test/fixtures/) holds real transactions of other Safes, recorded by kiss-sign, and crafted hostile cases (`hostile-*`). Each real case must reproduce its recorded on-chain safeTxHash. The tests read both the terminal and the page, compare seven comparison lists with [`test/expected/`](test/expected/) (a Bundler3 deposit, an ETH transfer, a Merkl claim, a CoW order, a Uniswap swap with its approvals, a Vault V2 cap submission and a reallocation), which kiss-sign's own tests also pin, and check that hostile text in the service's fields is never shown, and that the same text as an address-list name is shown escaped, with its bidi and control characters replaced. `test/known-addresses.txt` is for the tests only; do not sign with it.
 
 The official MultiSend addresses in `check.sh` come from [safe-global/safe-deployments](https://github.com/safe-global/safe-deployments) at commit `ca9cb0d2d5f5175fc8e41d579f356748d2bc1c62`.
 
