@@ -99,6 +99,10 @@ case_ hostile-layout-unknown-command 1.4.1 - '+指令 0x05 不在表 universal-r
 case_ hostile-layout-count 1.4.1 - '+2 個指令，但有 1 個元素' '+有 1024 bytes 的 bytes 引數無法解碼' '-1/1  指令'
 case_ hostile-layout-reencode 1.4.1 - '+重新編碼成 288 bytes，不是這 320 bytes；第一個不同處在 byte offset 288' '+有 320 bytes 的 bytes 引數無法解碼' '-部分 1:'
 case_ hostile-layout-bidi-string 1.4.1 - '+的 128 bytes（0x00000000…）不符合 known-layouts.txt' '+有 128 bytes 的 bytes 引數無法解碼' "-$(printf '\xe2\x80\xae')"
+case_ hostile-layout-uid-selector 1.4.1 - '+內含的呼叫' '+資料無法依 transfer(address,uint256) 解碼' '+部分 3:  1793413948'
+case_ hostile-layout-call-under-unknown-command 1.4.1 - '+指令 0x05 不在表 universal-router' '+內含的呼叫' \
+  '+不認識的地址 0x1111111111111111111111111111111111111111'
+case_ hostile-layout-settle-reencode 1.4.1 - '+重新編碼成 96 bytes，不是這 128 bytes；第一個不同處在 byte offset 96' '+有 128 bytes 的 bytes 部分無法解碼'
 LAYOUTS=$WORK/deep-layouts.txt
 sed 's/^v4-actions: 0x07 SWAP_EXACT_IN abi .*/v4-actions: 0x07 SWAP_EXACT_IN commands v4-actions/' "$TEST/../known-layouts.txt" > "$LAYOUTS"
 case_ uniswap-swap-approve-usdt-usdc 1.4.1 0xdad1c654fc116f37f62b76f974fd4dc865dbe58387204cbc2355babd99c5de49 '+commands 套超過 2 層' \
@@ -153,6 +157,24 @@ decoded_() {
   decode_ crafted-vault-v2-adapter-and-collateral-caps
 }
 decoded_
+# known-layouts.txt never changes a 比對清單: the pinned ones, and those of the layout cases, are the same without it.
+same_checklist_() {
+  local name=$1 version=$2 status=PASS
+  case_ "$name" "$version" -
+  sed -n '/^<!-- 比對清單 -->$/,/^<!-- \/比對清單 -->$/p' "$WORK"/out/*.html > "$WORK/with"
+  LAYOUTS=$WORK/empty-layouts.txt
+  case_ "$name" "$version" -
+  LAYOUTS=$TEST/../known-layouts.txt
+  sed -n '/^<!-- 比對清單 -->$/,/^<!-- \/比對清單 -->$/p' "$WORK"/out/*.html | diff -u "$WORK/with" - > "$WORK/diff" || status="FAIL (比對清單 depends on layouts)"
+  printf '%-45s %s\n' "$L $name 比對清單 without layouts" "$status"
+  if [ "$status" != PASS ]; then FAILED=$((FAILED + 1)); head -20 "$WORK/diff"; fi
+}
+: > "$WORK/empty-layouts.txt"
+for f in cow-swap-usdc uniswap-swap-approve-usdt-usdc vault-v2-cap-submit-flowmark vault-v2-reallocate-back crafted-vault-v2-adapter-and-collateral-caps \
+  hostile-layout-uid-selector hostile-layout-call-under-unknown-command hostile-layout-unknown-command hostile-layout-settle-reencode; do
+  v=1.4.1; [ $f = cow-swap-usdc ] && v=1.3.0
+  same_checklist_ $f $v
+done
 hostile_page_() {
   local name=$1 page status=PASS
   printf '0x9999999999999999999999999999999999999999 %s\n' $'<script>alert(1)</script> "><img src=x onerror=alert(1)> \xe2\x80\xaeevil\xe2\x80\x8f\x01' > "$WORK/known-hostile.txt"
@@ -261,7 +283,17 @@ layouts_ 'bytes check.sh decodes as calls' $'submit(bytes) 1 abi (address)\n' 'w
 layouts_ 'table row twice' $'execute(bytes,bytes[],uint256) 1,2 commands t\nt: 0x00 A abi (bool)\nt: 0x00 B abi (address)\n' 'known-layouts.txt gives t 0x00 twice'
 layouts_ 'commands and abi on one argument' $'execute(bytes,bytes[],uint256) 1,2 commands t\nexecute(bytes,bytes[],uint256) 1 abi (bool)\nt: 0x00 A abi (bool)\n' \
   'known-layouts.txt gives execute(bytes,bytes[],uint256)#1 twice'
+layouts_ 'chained tuples' $'setPreSignature(bytes,bool) 1 abi (address)(uint256)\n' 'known-layouts.txt line 1 is malformed'
+layouts_ 'empty tuple' $'setPreSignature(bytes,bool) 1 abi (())\n' 'known-layouts.txt line 1 is malformed'
+layouts_ 'unbalanced tuple' $'setPreSignature(bytes,bool) 1 abi ((address)\n' 'known-layouts.txt line 1 is malformed'
+layouts_ 'whitespace-only line' $'   \n' 'known-layouts.txt line 1 is malformed'
 layouts_ 'table with no rows' $'execute(bytes,bytes[],uint256) 1,2 commands nothing\n' 'known-layouts.txt names the table nothing, which has no rows'
+
+rm -rf "$WORK/out"
+out=$(CHECK_CONFIG="$WORK/config" CHECK_KNOWN="$TEST/known-addresses.txt" CHECK_LAYOUTS="$WORK/no-such-layouts.txt" CHECK_OUT="$WORK/out" \
+  /bin/bash "$TEST/../check.sh" --file "$TEST/fixtures/eth-transfer-null-data.json" 2>&1) || true
+if grep -qF "$WORK/no-such-layouts.txt not found" <<<"$out" && ! [ -d "$WORK/out" ]; then printf '%-45s PASS\n' 'layouts: missing file'
+else printf '%-45s FAIL\n' 'layouts: missing file'; FAILED=$((FAILED + 1)); fi
 
 # Both tables define the same keys in the same order, each with the same placeholders.
 table_() { sed -n "/^  $1)\$/,/;; *\$/p" "$TEST/../check.sh" | sed -nE 's/^ +([A-Z_]+)=.*/\1/p'; }

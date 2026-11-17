@@ -50,6 +50,7 @@ case $WORDS in
     E_DUP_ADDR='the same address appears twice: %s'
     E_DUP_FN='two functions in known-functions.txt share a selector: %s'
     E_ASCII='%s line %s holds a character that is not printable ASCII'
+    E_LAYOUTS='%s not found'
     E_LAYOUT_LINE='known-layouts.txt line %s is malformed: %s'
     E_LAYOUT_FN='known-layouts.txt line %s names %s, which is not in known-functions.txt'
     E_LAYOUT_CALLS='known-layouts.txt line %s names %s, whose bytes check.sh already decodes as calls'
@@ -177,6 +178,7 @@ case $WORDS in
     E_DUP_ADDR='同一個地址出現兩次: %s'
     E_DUP_FN='known-functions.txt 有兩個函式的 selector 相同: %s'
     E_ASCII='%s 第 %s 行有可列印 ASCII 以外的字元'
+    E_LAYOUTS='找不到 %s'
     E_LAYOUT_LINE='known-layouts.txt 第 %s 行格式不對: %s'
     E_LAYOUT_FN='known-layouts.txt 第 %s 行的 %s 不在 known-functions.txt'
     E_LAYOUT_CALLS='known-layouts.txt 第 %s 行的 %s，它的 bytes check.sh 已經當成呼叫解碼'
@@ -287,6 +289,9 @@ HINT='s/ \[-?[0-9.]+e[0-9]+\]//g'  # cast's "10001000000 [1e10]" -> "10001000000
 [ "$(cast decode-calldata --json 'f(address,bytes,uint256)' "$(cast calldata 'f(address,bytes,uint256)' $ZERO 0x01 1000000000000000000000)" | jq -c .data)" \
   = "[\"$ZERO\",\"0x01\",\"1000000000000000000000\"]" ] \
   && [ "$(cast decode-calldata 'f(int256)' "$(cast calldata 'f(int256)' -- -1000000000000000000000)" | sed -E "$HINT")" = -1000000000000000000000 ] \
+  && [ "$(cast abi-decode --json 'f()(string,address)' "$(cast abi-encode 'f(string,address)' a $ZERO)" | jq -c .data)" = "[\"a\",\"$ZERO\"]" ] \
+  && [ "$(cast abi-decode 'f()(string,(address,uint256))' "$(cast abi-encode 'f(string,(address,uint256))' a "($ZERO,1)")")" = "\"a\""$'\n'"($ZERO, 1)" ] \
+  && [ "$(cast abi-encode --packed 'f(bytes1,address,uint32)' 0x01 $ZERO 1)" = "0x01${ZERO#0x}00000001" ] \
   || die "$E_CAST"
 [ -f "$CONFIG" ] || die "$E_CONFIG" "$CONFIG"
 [ -f "$KNOWN" ] || die "$E_KNOWN" "$KNOWN"
@@ -365,6 +370,12 @@ layout_ok() {
   case $kind in
     abi)
       [ $# = 1 ] && [[ $1 =~ $types ]] || return 1
+      # One tuple: the parentheses balance, close only at the end, and none is empty.
+      jq -en --arg s "$1" '$s | test("[(][)]") | not' > /dev/null || return 1
+      jq -en --arg s "$1" '$s | explode | reduce .[] as $c ({d: 0, ok: true};
+        if .ok and .d == 0 and .n then .ok = false else . end
+        | .d += (if $c == 40 then 1 elif $c == 41 then -1 else 0 end) | .n = true
+        | if .d < 0 then .ok = false else . end) | .ok and .d == 0' > /dev/null || return 1
       for t in $(printf '%s' "$1" | sed -E 's/\[[0-9]*\]//g' | tr '(),' '   '); do
         case $t in
           address|bool|string|bytes) ;;
@@ -382,12 +393,13 @@ layout_ok() {
 }
 
 # known-layouts.txt, as lines "F <function> <argument> <kind> <spec>" and "T <table> <byte> <NAME> <kind> <spec>".
+[ -f "$LAYOUTS_FILE" ] || die "$E_LAYOUTS" "$LAYOUTS_FILE"
 LAYOUTS="" KEYS="" n=0
 while IFS= read -r line; do
   n=$((n + 1))
   case $line in ''|'#'*) continue ;; esac
   read -r -a w <<<"$line"
-  if [[ ${w[0]} =~ ^[a-z0-9-]+:$ ]]; then
+  if [[ ${w[0]:-} =~ ^[a-z0-9-]+:$ ]]; then
     [ ${#w[@]} -ge 4 ] && [[ ${w[1]} =~ ^0x[0-9a-f]{2}$ ]] && [[ ${w[2]} =~ ^[A-Z0-9_]+$ ]] && layout_ok "${w[@]:3}" \
       || die "$E_LAYOUT_LINE" "$n" "$line"
     LAYOUTS="${LAYOUTS}T ${w[0]%:} ${w[*]:1}"$'\n'
@@ -413,9 +425,9 @@ while IFS= read -r line; do
 done < "$LAYOUTS_FILE"
 dup=$(printf '%s' "$LAYOUTS" | grep '^T ' | cut -d' ' -f2,3 | sort | uniq -d) || true
 [ -z "$dup" ] || die "$E_LAYOUT_DUP" "$dup"
-for k in $(printf '%s' "$KEYS" | grep ' commands$' | cut -d' ' -f1); do
-  [ "$(printf '%s' "$KEYS" | cut -d' ' -f1 | grep -cxF -- "$k")" = 1 ] || die "$E_LAYOUT_DUP" "$k"
-done
+while IFS= read -r k; do
+  [ -z "$k" ] || [ "$(printf '%s' "$KEYS" | cut -d' ' -f1 | grep -cxF -- "$k")" = 1 ] || die "$E_LAYOUT_DUP" "$k"
+done <<<"$(printf '%s' "$KEYS" | sed -n 's/ commands$//p')"
 for t in $(printf '%s' "$LAYOUTS" | sed -nE 's/.* commands ([a-z0-9-]+)$/\1/p' | sort -u); do
   printf '%s' "$LAYOUTS" | grep -q "^T $t " || die "$E_LAYOUT_TABLE" "$t"
 done
@@ -492,7 +504,7 @@ show_call() {
 }
 
 show_data() {
-  local ind=$1 data=$2 id=$3 multisend=${4:-} sig json line n=0 args=() reencoded extra blobs b k=0 name calls=""
+  local ind=$1 data=$2 id=$3 multisend=${4:-} sig json line n=0 args=() reencoded extra blobs opaque b k=0 name calls=""
   if [ "$data" = 0x ]; then echo "${ind}$T_ETH_ONLY"; row "$id-data" data "$V_NONE"; return; fi
   sig=$(printf '%s' "$FUNCTIONS" | grep "^${data:0:10} " | cut -d' ' -f2- || true)
   if [ -z "$sig" ]; then
@@ -535,7 +547,8 @@ show_data() {
     row "$id-extra" "$K_EXTRA" "0x$extra"
   fi
 
-  for b in $(addresses_in "$json"); do show_addr "$ind  " "$T_ADDR" "$b"; done
+  b=$(addresses_in "$json") || die "$E_CAST"
+  for b in $b; do show_addr "$ind  " "$T_ADDR" "$b"; done
 
   case $sig in
     'multiSend(bytes)')
@@ -557,10 +570,13 @@ show_data() {
         'multicall(bytes[])'|'submit(bytes)'|'revoke(bytes)')
           # Each of these bytes is a call the contract makes on itself, so one of any length is decoded or warned about.
           calls=yes
-          blobs=$(jq -r '.data | .. | strings | ascii_downcase' <<<"$json") ;;
+          blobs=$(jq -r '.data | .. | strings | ascii_downcase' <<<"$json")
+          opaque=$blobs ;;
         *)
           apply_layouts "$ind  " "$sig" "$json"
-          blobs=$(blobs_in "$json" "$LAID") ;;
+          # A known call is decoded wherever it is; only the warning for undecodable bytes is dropped for what a layout read.
+          blobs=$(blobs_in "$json") || die "$E_CAST"
+          opaque=$(blobs_in "$json" "$LAID") || die "$E_CAST" ;;
       esac
       for b in $blobs; do
         if [ -z "$calls" ] && { [ ${#b} = 42 ] || [ ${#b} = 66 ]; }; then continue; fi  # an address or a bytes32 is shown as is, never decoded
@@ -569,7 +585,7 @@ show_data() {
           k=$((k + 1))
           group "$id.$k" "$G_INNER"
           show_data "$ind    " "$b" "$id.$k"
-        else
+        elif grep -qxF -- "$b" <<<"$opaque"; then
           warn "$ind  " "$W_BYTES" "$CALLS" "$(( (${#b} - 2) / 2 ))" "${b:0:10}"
         fi
       done ;;
@@ -628,8 +644,11 @@ read_layout() {
 show_parts() {
   local ind=$1 i=0 b
   while [ $i -lt ${#PARTS[@]} ]; do echo "$ind$(printf "$T_PART" $((i + 1)) "${PARTS[$i]}")"; i=$((i + 1)); done
-  for b in $(addresses_in "$PJSON"); do show_addr "$ind" "$T_ADDR" "$b"; done
-  for b in $(blobs_in "$PJSON"); do
+  local addresses blobs
+  addresses=$(addresses_in "$PJSON") || die "$E_CAST"
+  blobs=$(blobs_in "$PJSON") || die "$E_CAST"
+  for b in $addresses; do show_addr "$ind" "$T_ADDR" "$b"; done
+  for b in $blobs; do
     if [ ${#b} != 42 ] && [ ${#b} != 66 ]; then warn "$ind" "$W_PART_BYTES" "$CALLS" "$(size "$b")" "${b:0:10}"; fi
   done
 }
@@ -672,16 +691,17 @@ show_commands() {
 # Reads each argument of the function $2 that known-layouts.txt describes. LAID lists the arguments read, whose
 # opaque-bytes warning is dropped; an argument that fits none of its layouts is left to the usual warning, and WHY.
 apply_layouts() {
-  local ind=$1 sig=$2 json=$3 arg lines line value whys w
+  local ind=$1 sig=$2 json=$3 arg lines line value whys w i j
   LAID=" "
   for arg in $(printf '%s' "$LAYOUTS" | awk -v s="$sig" '$1 == "F" && $2 == s && !seen[$3]++ {print $3}'); do
     lines=$(printf '%s' "$LAYOUTS" | awk -v s="$sig" -v a="$arg" '$1 == "F" && $2 == s && $3 == a')
     if [[ $arg =~ ^([0-9]+),([0-9]+)$ ]]; then
+      i=${BASH_REMATCH[1]} j=${BASH_REMATCH[2]}
       read -r -a w <<<"$lines"
-      value=$(jq -r ".data[$((BASH_REMATCH[1] - 1))]" <<<"$json")
-      echo "$ind$(printf "$T_COMMANDS" "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${w[4]}")"
-      if show_commands "$ind  " 1 "${w[4]}" "$value" "$(jq -c ".data[$((BASH_REMATCH[2] - 1))]" <<<"$json")"; then
-        LAID="$LAID${BASH_REMATCH[1]} ${BASH_REMATCH[2]} "
+      value=$(jq -r ".data[$((i - 1))]" <<<"$json")
+      echo "$ind$(printf "$T_COMMANDS" "$i" "$j" "${w[4]}")"
+      if show_commands "$ind  " 1 "${w[4]}" "$value" "$(jq -c ".data[$((j - 1))]" <<<"$json")"; then
+        LAID="$LAID$i $j "
       else warn "$ind" "$W_LAYOUT" "$CALLS" "$(size "$value")" "${value:0:10}" "$WHY"
       fi
       continue
