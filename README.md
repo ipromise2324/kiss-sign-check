@@ -29,9 +29,7 @@ On the clean computer, with macOS or Linux (on Windows, use WSL):
 ```sh
 curl -L https://foundry.paradigm.xyz | bash   # installs foundryup; open a new terminal after it
 foundryup                                     # installs Foundry, for cast
-# Linux only (x86-64); macOS already has jq. These install jq 1.7.1 and check its sha256:
-curl -fsSLo jq https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-amd64
-echo "5942c9b0934e510ee61eb3e30273f1b3fe2590df93933a93d7c58b81d19c8ff5  jq" | sha256sum -c && sudo install jq /usr/local/bin/jq
+sudo apt install jq                           # Linux only (Ubuntu 24.04, Debian 13 or newer); macOS already has it
 git clone https://github.com/ipromise2324/kiss-sign-check.git && cd kiss-sign-check
 ./check.sh init --safe 0x… --safe-version 1.4.1 --language en   # or zh-TW; the same language you gave kiss-sign
 ```

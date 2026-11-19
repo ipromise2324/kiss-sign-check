@@ -10,7 +10,7 @@ A wrong `SAFE_VERSION` can give a hash that does not match your wallet, and a ma
 
 `./check.sh init` writes `config`; run it again to change a value. `CHECK_CONFIG` can name another config, and `CHECK_OUT` another folder for the pages than `out/`. `config` and `out/` are ignored by git and stay on this computer.
 
-On an ARM Linux, take `jq-linux-arm64` instead, whose sha256 is `4dd2d8a0661df0b22f1bb9a1f9830f06b6f3b8f7d91211a1ef5d7c4f06a8b4a5`. Any jq 1.7 or later works; `check.sh` checks at start that `cast` and `jq` behave as it expects.
+`check.sh` needs jq 1.7 or later, which Ubuntu 24.04 and Debian 13 ship; an older jq escapes text differently, so `check.sh` checks at start that `cast` and `jq` behave as it expects and refuses to run otherwise.
 
 ## Running it
 

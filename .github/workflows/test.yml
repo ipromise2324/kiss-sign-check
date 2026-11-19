@@ -16,9 +16,5 @@ jobs:
         with:
           version: v1.9.0
       # The same jq install the README gives for Linux.
-      - run: |
-          curl -fsSLo jq https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-amd64
-          echo "5942c9b0934e510ee61eb3e30273f1b3fe2590df93933a93d7c58b81d19c8ff5  jq" | sha256sum -c
-          sudo install jq /usr/local/bin/jq
-          jq --version
+      - run: sudo apt-get install -y jq && jq --version
       - run: /bin/bash test/run.sh
