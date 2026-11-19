@@ -17,7 +17,6 @@ Remember [decoding a Safe transaction by hand](https://github.com/ipromise2324/k
 - [Set up](#set-up)
 - [Use](#use)
 - [What it does not do](#what-it-does-not-do)
-- [More](#more)
 - [Contributing](#contributing)
 - [Disclaimer](#disclaimer)
 - [Donate](#donate)
@@ -80,15 +79,9 @@ Here part 2 is the order's owner, your Safe, and part 3 its expiry time. A hint 
 - **It does not read the chain or simulate.** It sees the transaction, not its effects.
 - **It does not prove an ABI.** Sourcify's ABI only helps you read; if it is wrong, the comparison list differs from kiss-sign's.
 
-## More
-
-- [docs/details.md](docs/details.md): the settings, what it fetches, every check and warning, and the tests.
-- [docs/hints.md](docs/hints.md): the `--hints` kiss-sign adds for bytes no ABI describes.
-- [docs/checklist.md](docs/checklist.md): the comparison list's row format.
-
 ## Contributing
 
-Open an issue or a pull request. Keep `check.sh` short enough to read in one sitting, and keep it to `cast`, `curl` and `jq`. A change to the comparison list's format must change kiss-sign in step; see [docs/checklist.md](docs/checklist.md).
+Open an issue or a pull request. Keep `check.sh` short enough to read in one sitting, and keep it to `cast`, `curl` and `jq`. The details of how it works are in [`docs/`](docs/): [details.md](docs/details.md) for every setting, check and test, [hints.md](docs/hints.md) for the `--hints` format, and [checklist.md](docs/checklist.md) for the comparison list's rows. A change to the comparison list's format must change kiss-sign in step; see [docs/checklist.md](docs/checklist.md).
 
 Report security problems as an issue too.
 
