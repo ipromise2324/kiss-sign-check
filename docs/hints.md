@@ -1,6 +1,6 @@
 # Hints from kiss-sign
 
-This is the full format of `--hints` and what `check.sh` does with them. The [README](../README.md#hints-from-kiss-sign) has the short version.
+This is the full format of `--hints` and what `check.sh` does with them. The [README](../README.md) links here.
 
 Some `bytes` hold no call but data in a fixed shape that no contract's ABI describes: a Uniswap Universal Router command's input, a Morpho Vault V2 cap id, a market adapter's `allocate` data, a CoW order UID. Nobody keeps a list of these. kiss-sign's template for the operation already says how it reads them, so after `MATCH` kiss-sign prints them in the command as `--hints`, and `check.sh` reads layouts from there and nowhere else. Without `--hints`, those bytes stay raw with a warning.
 
