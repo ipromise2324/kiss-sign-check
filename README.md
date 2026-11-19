@@ -40,14 +40,39 @@ When kiss-sign `verify` prints `MATCH`, type on the clean computer the command i
 ./check.sh 1566
 ```
 
-Open the page it writes and check three things:
+Open the page it writes and check three things.
 
-1. **The hashes** are the same as on your hardware wallet. If not, do not sign.
-2. **The comparison list** is the same as on kiss-sign's page, row by row, except the name column on the right, where kiss-sign names addresses from its registry. If any other row differs, stop.
+**1. The hashes.** They must be the same on both pages and on your hardware wallet's screen. If not, do not sign.
 
-   ![The kiss-sign verify page (MATCH) on the work computer and the check.sh page on the second computer, side by side, with the same hashes and the same calls row by row](docs/readme/side-by-side.png)
+![The hash rows of both pages side by side: safeTxHash, domain hash and message hash, the same on kiss-sign verify and on check.sh](docs/readme/compare-hashes.png)
 
-3. **The warnings and the calls.** Read every warning, and read each call's `to`, amount and recipient against what you meant to do. Equal rows prove only that both computers decoded the same bytes the same way.
+**2. The comparison list.** Every call, row by row, down to the calls inside a batch, must be the same as on kiss-sign's page. Only the name column on the right may differ: kiss-sign names addresses from its registry, `check.sh` names only your Safe, the official MultiSends and the zero address. If any other row differs, stop.
+
+![Some rows of call #3 on both pages side by side: the Bundler3 multicall, then its two inner calls, erc20TransferFrom of 1000611448606 and erc4626Deposit into vault 0x093272C07700d3cA5301C3Bf9B3A392624179E2F for the Safe, the same on both sides; only kiss-sign's side names the vault and the amounts in the last column](docs/readme/compare-multicall.png)
+
+**3. The warnings and the calls.** Read every warning, and read each call's `to`, amount and recipient against what you meant to do. Equal rows prove only that both computers decoded the same bytes the same way.
+
+### Hints
+
+Some `bytes` hold data in a fixed shape that no ABI describes, such as a CoW order's UID. kiss-sign's template knows the shape, so after `MATCH` it adds `--hints` to the command:
+
+```sh
+./check.sh 264 --hints 'v1 C1-a1=packed(bytes32,address,uint32)'
+```
+
+This says: argument 1 of call `C1` is a `bytes32`, an `address` and a `uint32` packed together. `check.sh` splits the 56 bytes that way, checks the parts join back into exactly those bytes, and shows them under a warning:
+
+```
+function:  setPreSignature(bytes,bool)
+  argument 1:  0xc45125ce…6ae5533c
+  C1-a1 as packed bytes32 address uint32 (--hints):
+  !! Warning: call #1's 56 bytes at C1-a1 (0xc45125ce…) are shown as --hints reads them …
+    part 1:  0xc45125ce75112738d7cde40eef1321f070e792066f9211fd0c4eb1616c309b64
+    part 2:  0xb18D844f3578EaD22791B5c67F7B6aF93266804E
+    part 3:  1793413948
+```
+
+Here part 2 is the order's owner, your Safe, and part 3 its expiry time. A hint only helps you read: it never changes a row of the comparison list, so a wrong hint cannot make the two pages match. The format and every rule are in [docs/hints.md](docs/hints.md).
 
 ## What it does not do
 
