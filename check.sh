@@ -144,7 +144,7 @@ case $WORDS in
     P_NOTES='Notes'
     P_NOTES_LEAD='Facts the decode found, not warnings. check.sh does not judge them.'
     P_LOG='Full decode'
-    P_LOG_LEAD="Everything check.sh decoded itself, with every address's name. Long values are folded; open one to read it in full."
+    P_LOG_LEAD="Everything check.sh decoded itself. Long values are folded; open one to read it in full."
     P_LONG=' (%s characters)'
     P_FOOTER='Written by check.sh with only cast, curl and jq; it holds no AI text.' ;;
   zh-TW)
@@ -271,7 +271,7 @@ case $WORDS in
     P_NOTES='注意'
     P_NOTES_LEAD='解碼看到的事實，不是警告。check.sh 不判斷它們。'
     P_LOG='完整解碼'
-    P_LOG_LEAD='check.sh 自己解出的全部內容，含每個地址的名字。很長的值收起來，點開看全文。'
+    P_LOG_LEAD='check.sh 自己解出的全部內容。很長的值收起來，點開看全文。'
     P_LONG='（%s 字元）'
     P_FOOTER='這頁由 check.sh 寫出，只用 cast、curl、jq，不含 AI 文字。' ;;
   *) printf 'Error: LANGUAGE in %s must be en or zh-TW, not %q\n' "$CONFIG" "$WORDS" >&2; exit 1 ;;

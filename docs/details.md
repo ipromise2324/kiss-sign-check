@@ -8,13 +8,13 @@ Set `LANGUAGE` to the language your kiss-sign uses, the one its `init` recorded:
 
 A wrong `SAFE_VERSION` can give a hash that does not match your wallet, and a matching hash does not prove the version is right: versions 1.3.0 to 1.5.0 hash the same way, as do 1.1.0 to 1.2.0.
 
-`CHECK_CONFIG` can name another config. `config` and `out/` are ignored by git and stay on this computer.
+`CHECK_CONFIG` can name another config, and `CHECK_OUT` another folder for the pages than `out/`. `config` and `out/` are ignored by git and stay on this computer.
 
 ## Running it
 
 The command carries `--hints` when the template reads `bytes` no ABI describes; see [hints.md](hints.md).
 
-It fetches the transactions at that nonce from `api.safe.global`, and the ABI of each contract a call goes to from `sourcify.dev`, both mainnet only and with no API key. Those are its only network requests. `./check.sh --file <tx.json>` reads the transactions from a file instead, and refuses a file whose transactions do not all share one nonce; it still asks Sourcify for the ABIs. Sourcify thus learns which contracts your pending transaction calls. If Sourcify does not answer, or answers with anything but the contract's ABI or "not verified", `check.sh` stops and writes no page; run it again later. The terminal prints a summary (here run with `CHECK_OUT=out`, so the page path is short):
+It fetches the transactions at that nonce from `api.safe.global`, and the ABI of each contract a call goes to from `sourcify.dev`, both mainnet only and with no API key. Those are its only network requests. `./check.sh --file <tx.json>` reads the transactions from a file instead, and refuses a file whose transactions do not all share one nonce. It refuses any transaction of a Safe other than the one in `config`, and, from the service, an answer that runs to a second page or holds another nonce; it still asks Sourcify for the ABIs. Sourcify thus learns which contracts your pending transaction calls. If Sourcify does not answer, or answers with anything but the contract's ABI or "not verified", `check.sh` stops and writes no page; run it again later. The terminal prints a summary (here run with `CHECK_OUT=out`, so the page path is short):
 
 ![The terminal after ./check.sh 1566: the safeTxHash, 3 calls from the Safe, a note that USDC is a proxy whose calls are decoded with the ABI of the implementation Sourcify reports, a warning that call #3 has 8 bytes after its arguments, which no argument holds but a contract can still read, and the path of the page](readme/terminal.png)
 
@@ -23,7 +23,7 @@ It fetches the transactions at that nonce from `api.safe.global`, and the ABI of
 
 The page also holds the full decode, with every call and every argument:
 
-![The check.sh page's full decode of nonce 1566: the Safe's DELEGATECALL into the official MultiSend, the USDC approve to Morpho GeneralAdapter1, and the Bundler3 multicall with its two calls, erc20TransferFrom and erc4626Deposit into the Hyperithm USDC Apex vault](readme/decode.png)
+![The check.sh page's full decode of nonce 1566: the Safe's DELEGATECALL into the official MultiSend, an approve on 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 for 0x4A6c312ec70E8747a587EE860a0353cd42Be0aE0, and a Bundler3 multicall with its two calls, erc20TransferFrom and erc4626Deposit into 0x093272C07700d3cA5301C3Bf9B3A392624179E2F; only the Safe, the zero address and the official MultiSend are named](readme/decode.png)
 
 If several transactions share the nonce, the summary and the page show each one with its hash. Sign only the one whose hashes your wallet shows.
 
@@ -40,18 +40,20 @@ Sourcify is trusted only to help you read. Each call's `function` row in the com
 ## What it checks
 
 - **The hash, computed locally.** The safeTxHash comes from the same `to`, `value`, `data`, `operation` and gas fields the decode prints. The service's own hash is used only to warn when it differs.
-- **Every call.** Each call inside a MultiSend, each call of a Bundler3 `multicall` with its target and value, each call of `multicall(bytes[])`, `submit(bytes)` and `revoke(bytes)`, and the bundle Morpho calls back with from `morphoSupplyCollateral`. A MultiSend is split into the Safe's calls only when the Safe itself DELEGATECALLs an official MultiSend, and the list must split exactly.
+- **Every call.** Each call inside a MultiSend, each call of a Bundler3 `multicall` with its target and value, each call of `multicall(bytes[])`, `submit(bytes)` and `revoke(bytes)`, and the bundle Morpho calls back with from `morphoSupplyCollateral`. A MultiSend is split into the Safe's calls only when the Safe itself DELEGATECALLs an official MultiSend; a list that does not split exactly stops the split with a warning.
 - **The decode is exact.** The decoded arguments are encoded again and compared with the data. Any difference is a warning, bytes after the arguments included: no argument holds them, but a contract can still read them. The Morpho and Uniswap apps append such a tag to their calls, so their transactions carry this warning; kiss-sign's template states how many bytes it allows.
 - **Addresses are shown, not judged.** It names only the official MultiSend addresses, built in, the Safe in your `config` and the zero address. Whether any other address is the protocol's real one is kiss-sign's check, not this one.
 - **Warnings for what usually means trouble:**
   - non-zero `safeTxGas`, `baseGas`, `gasPrice`, `gasToken` or `refundReceiver`;
   - a DELEGATECALL other than the Safe's own call into an official MultiSend, or a plain CALL into an official MultiSend;
   - a zero `to` inside a MultiSend;
+  - a `multiSend` it does not split, and a MultiSend list with leftover bytes, a bad operation byte or a length that runs past the data;
+  - a function whose data cannot be decoded, or does not encode back to the same bytes;
   - a contract Sourcify has not verified, a function its ABI lacks, or a `bytes` argument or part it cannot decode, bytes it shows as a hint reads them, a hint that does not fit, and a hint it does not use;
   - a `bytes` value of exactly 20 bytes, shown also as the address it may be, or of exactly 32 bytes, shown also as the address it may be when its first 12 bytes are zero;
   - bytes after a call's arguments;
   - ETH sent along with a call that has data, from the Safe or a MultiSend (a Bundler3 call's value is shown, not warned on);
-  - a Safe admin function anywhere, such as adding an owner;
+  - a Safe admin function anywhere, from a fixed list, such as adding an owner;
   - several transactions at one nonce;
   - a service hash that differs or is malformed.
 - **Text from outside cannot run or hide on the page.** Every value reaches the page through `jq`'s `@html`, and control, bidi and zero-width characters become U+FFFD. The terminal has its control characters removed (C0 except tab and newline, and DEL). At start it checks that `cast` and `jq` behave as it expects, and refuses to run otherwise.
@@ -75,9 +77,9 @@ Sourcify is trusted only to help you read. Each call's `function` row in the com
 
 - every real case reproduces its recorded on-chain safeTxHash;
 - the comparison lists of seven transactions, in each language, equal [`test/expected/en/`](../test/expected/en/) and [`test/expected/zh-TW/`](../test/expected/zh-TW/), which kiss-sign's own tests also pin: a Bundler3 deposit, an ETH transfer, a Merkl claim, a CoW order, a Uniswap swap with its approvals, a Vault V2 cap submission and a reallocation;
-- each runs with the `--hints` kiss-sign prints for it, kept in [`test/expected/hints/`](../test/expected/hints/) and pinned by kiss-sign's tests too, and the full decode of the five cases hints read is as expected;
-- the comparison list is the same with kiss-sign's hints, with hostile hints that fit and that do not, and with none;
-- bytes a hint reads always keep a warning, a hint that does not fit or names nothing says why, and malformed hints are refused before anything runs;
+- each runs with the `--hints` kiss-sign prints for it, kept in [`test/expected/hints/`](../test/expected/hints/) and pinned by kiss-sign's tests too (empty where kiss-sign prints none), and the full decode of the five cases hints read is as expected (the crafted cap-id case's hints are in `test/run.sh`);
+- for selected cases, the comparison list is the same with kiss-sign's hints, with hostile hints that fit and that do not, and with none;
+- bytes a hint reads always keep a warning, a hint that does not fit or names nothing says why, and malformed hints are refused before the transaction is decoded;
 - hostile text in the service's fields is never shown as markup, and its bidi and control characters are replaced.
 
 The tests read no network. [`test/sourcify/`](../test/sourcify/) holds Sourcify's answer for every contract `check.sh` asks about while it decodes the fixtures, named `<address>.<HTTP status>.json`, and `CHECK_SOURCIFY_DIR` makes `check.sh` read them instead of asking Sourcify. `/bin/bash test/record-sourcify.sh` records them again, by running `check.sh` on every fixture with `CHECK_SOURCIFY_SAVE`, which saves each answer it gets.

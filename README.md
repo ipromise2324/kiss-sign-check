@@ -45,7 +45,7 @@ Open the page it writes and check three things.
 
 ![The hash rows of both pages side by side: safeTxHash, domain hash and message hash, the same on kiss-sign verify and on check.sh](docs/readme/compare-hashes.png)
 
-**2. The comparison list.** Every call, row by row, down to the calls inside a batch, must be the same as on kiss-sign's page. Only the name column on the right may differ: kiss-sign names addresses from its registry, `check.sh` names only your Safe, the official MultiSends and the zero address. If any other row differs, stop.
+**2. The comparison list.** Every call, row by row, down to the calls inside a batch, must be the same as on kiss-sign's page. Only the name column on the right may differ: kiss-sign names addresses from its registry, while `check.sh` names only your Safe, the official MultiSends and the zero address, and adds a few notes of its own. If any other row differs, stop.
 
 ![Some rows of call #3 on both pages side by side: the Bundler3 multicall, then its two inner calls, erc20TransferFrom of 1000611448606 and erc4626Deposit into vault 0x093272C07700d3cA5301C3Bf9B3A392624179E2F for the Safe, the same on both sides; only kiss-sign's side names the vault and the amounts in the last column](docs/readme/compare-multicall.png)
 
@@ -59,7 +59,7 @@ Some `bytes` hold data in a fixed shape that no ABI describes, such as a CoW ord
 ./check.sh 264 --hints 'v1 C1-a1=packed(bytes32,address,uint32)'
 ```
 
-This says: argument 1 of call `C1` is a `bytes32`, an `address` and a `uint32` packed together. `check.sh` splits the 56 bytes that way, checks the parts join back into exactly those bytes, and shows them under a warning:
+This says: argument 1 of call `C1` is a `bytes32`, an `address` and a `uint32` packed together. `check.sh` splits the 56 bytes that way, checks the parts join back into exactly those bytes, and shows them under a warning. An excerpt of the page's full decode:
 
 ```
 function:  setPreSignature(bytes,bool)
@@ -81,15 +81,11 @@ Here part 2 is the order's owner, your Safe, and part 3 its expiry time. A hint 
 
 ## Contributing
 
-Open an issue or a pull request. Keep `check.sh` short enough to read in one sitting, and keep it to `cast`, `curl` and `jq`. The details of how it works are in [`docs/`](docs/): [details.md](docs/details.md) for every setting, check and test, [hints.md](docs/hints.md) for the `--hints` format, and [checklist.md](docs/checklist.md) for the comparison list's rows. A change to the comparison list's format must change kiss-sign in step; see [docs/checklist.md](docs/checklist.md).
-
-Report security problems as an issue too.
+Issues, security problems included, and pull requests are welcome. Keep `check.sh` to `cast`, `curl` and `jq`, short enough to read in one sitting. How it works is in [`docs/`](docs/); a change to the comparison list must change kiss-sign too.
 
 ## Disclaimer
 
-`check.sh` is provided as is, without warranty of any kind. It can be wrong: a bug, a compromised Safe Transaction Service or a compromised second computer can make it show rows that match a transaction you did not mean. Matching rows say only that two programs decoded the same bytes the same way. They do not say that a protocol, a contract or a transaction is safe, and nothing here is financial, legal or security advice.
-
-You alone are responsible for every transaction you sign. The authors and contributors are not liable for any loss, however it arises, including through the use of kiss-sign or kiss-sign-check.
+`check.sh` is provided as is, with no warranty, and can be wrong. Matching rows mean only that two programs decoded the same bytes the same way, not that a transaction is safe. You alone are responsible for what you sign.
 
 ## Donate
 
