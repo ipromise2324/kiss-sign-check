@@ -1,5 +1,6 @@
 #!/bin/bash
 # Shows exactly what a Safe transaction does, using only cast, curl and jq.
+#   ./check.sh init --safe <address> --safe-version <version> [--language en|zh-TW]   write config, once
 #   ./check.sh <nonce>          fetch the transaction(s) at this nonce from the Safe Transaction Service
 #   ./check.sh --file <tx.json> read one transaction, or a page of them, in the service's JSON shape
 #   --hints '<hints>'           how to read bytes no ABI describes, as kiss-sign verify prints them; see README.md
@@ -43,7 +44,12 @@ case $WORDS in
     E_PREFIX='Error: '
     E_TOOL='%s not found. Install Foundry (cast), curl and jq.'
     E_CAST='this version of cast decodes in a shape this script does not expect'
-    E_CONFIG='%s not found (create it from config.example)'
+    E_CONFIG='%s not found (run ./check.sh init first)'
+    E_INIT_USAGE='usage: ./check.sh init --safe <address> --safe-version <version> [--language en|zh-TW]'
+    E_INIT_SAFE='--safe is not 0x and 40 hex characters'
+    E_INIT_VERSION='unsupported --safe-version (supported: 1.1.0, 1.1.1, 1.2.0, 1.3.0, 1.4.0, 1.4.1, 1.5.0)'
+    E_INIT_LANGUAGE='--language must be en or zh-TW'
+    T_INIT='Wrote %s: SAFE=%s SAFE_VERSION=%s LANGUAGE=%s'
     E_SAFE='SAFE in config is not 0x and 40 hex characters'
     E_VERSION='unsupported SAFE_VERSION (supported: 1.1.0, 1.1.1, 1.2.0, 1.3.0, 1.4.0, 1.4.1, 1.5.0)'
     E_HINTS='--hints is malformed: %s'
@@ -170,7 +176,12 @@ case $WORDS in
     E_PREFIX='錯誤: '
     E_TOOL='找不到 %s。請安裝 Foundry（cast）、curl 和 jq。'
     E_CAST='這個版本的 cast 解碼輸出格式和本程式預期的不同'
-    E_CONFIG='找不到 %s（請照 config.example 建立）'
+    E_CONFIG='找不到 %s（請先執行 ./check.sh init）'
+    E_INIT_USAGE='用法: ./check.sh init --safe <地址> --safe-version <版本> [--language en|zh-TW]'
+    E_INIT_SAFE='--safe 不是 0x 加 40 個十六進位字元'
+    E_INIT_VERSION='不支援的 --safe-version（支援 1.1.0、1.1.1、1.2.0、1.3.0、1.4.0、1.4.1、1.5.0）'
+    E_INIT_LANGUAGE='--language 只能是 en 或 zh-TW'
+    T_INIT='已寫入 %s: SAFE=%s SAFE_VERSION=%s LANGUAGE=%s'
     E_SAFE='config 的 SAFE 不是 0x 加 40 個十六進位字元'
     E_VERSION='不支援的 SAFE_VERSION（支援 1.1.0、1.1.1、1.2.0、1.3.0、1.4.0、1.4.1、1.5.0）'
     E_HINTS='--hints 格式不對: %s'
@@ -281,6 +292,27 @@ die() { printf "$E_PREFIX$1\n" "${@:2}" >&2; exit 1; }
 lc() { printf '%s' "$1" | tr 'A-F' 'a-f'; }
 is_addr() { [[ $1 =~ ^0x[0-9a-fA-F]{40}$ ]]; }
 is_uint() { [[ $1 =~ ^(0|[1-9][0-9]*)$ ]]; }
+
+if [ "${1:-}" = init ]; then
+  shift
+  safe="" version="" language=en
+  while [ $# -gt 0 ]; do
+    [ $# -ge 2 ] || die "$E_INIT_USAGE"
+    case $1 in
+      --safe) safe=$2 ;;
+      --safe-version) version=$2 ;;
+      --language) language=$2 ;;
+      *) die "$E_INIT_USAGE" ;;
+    esac
+    shift 2
+  done
+  is_addr "$safe" || die "$E_INIT_SAFE"
+  case $version in 1.1.0|1.1.1|1.2.0|1.3.0|1.4.0|1.4.1|1.5.0) ;; *) die "$E_INIT_VERSION" ;; esac
+  case $language in en|zh-TW) ;; *) die "$E_INIT_LANGUAGE" ;; esac
+  printf 'SAFE=%s\nSAFE_VERSION=%s\nLANGUAGE=%s\n' "$safe" "$version" "$language" > "$CONFIG"
+  printf "$T_INIT\n" "$CONFIG" "$safe" "$version" "$language"
+  exit 0
+fi
 
 for tool in cast curl jq; do
   command -v "$tool" >/dev/null || die "$E_TOOL" "$tool"

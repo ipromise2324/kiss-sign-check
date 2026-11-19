@@ -24,12 +24,17 @@ Remember [decoding a Safe transaction by hand](https://github.com/ipromise2324/k
 
 ## Set up
 
-On the clean computer, install [Foundry](https://getfoundry.sh) for `cast`, and `jq` 1.7 or later. macOS's own `curl` and Bash are enough. Then:
+On the clean computer. macOS's own `curl` and Bash are enough.
 
 ```sh
+curl -L https://foundry.paradigm.xyz | bash   # installs foundryup; open a new terminal after it
+foundryup                                     # installs Foundry, for cast
+brew install jq                               # or your package manager's jq, 1.7 or later
 git clone https://github.com/ipromise2324/kiss-sign-check.git && cd kiss-sign-check
-cp config.example config  # set your SAFE, its SAFE_VERSION and the LANGUAGE you gave kiss-sign
+./check.sh init --safe 0x… --safe-version 1.4.1 --language en   # or zh-TW; the same language you gave kiss-sign
 ```
+
+`--safe-version` is your Safe's version as the Safe web app shows it.
 
 ## Use
 
@@ -46,6 +51,8 @@ Open the page it writes and check three things.
 ![The hash rows of both pages side by side: safeTxHash, domain hash and message hash, the same on kiss-sign verify and on check.sh](docs/readme/compare-hashes.png)
 
 **2. The comparison list.** Every call, row by row, down to the calls inside a batch, must be the same as on kiss-sign's page. Only the name column on the right may differ: kiss-sign names addresses from its registry, while `check.sh` names only your Safe, the official MultiSends and the zero address, and adds a few notes of its own. If any other row differs, stop.
+
+This is a three-way check of what each call does. kiss-sign decodes with an ABI it proves itself, from Etherscan's verified source compiled and compared with the code on chain; `check.sh` decodes with Sourcify's ABI; both read the same transaction bytes. Equal `function` rows mean the two ABIs agree on every call.
 
 ![Some rows of call #3 on both pages side by side: the Bundler3 multicall, then its two inner calls, erc20TransferFrom of 1000611448606 and erc4626Deposit into vault 0x093272C07700d3cA5301C3Bf9B3A392624179E2F for the Safe, the same on both sides; only kiss-sign's side names the vault and the amounts in the last column](docs/readme/compare-multicall.png)
 
@@ -77,7 +84,6 @@ Here part 2 is the order's owner, your Safe, and part 3 its expiry time. A hint 
 
 - **It does not judge.** It does not know whether a contract is the protocol's real one, or whether the transaction is what you meant. kiss-sign does that, against your card.
 - **It does not read the chain or simulate.** It sees the transaction, not its effects.
-- **It does not prove an ABI.** Sourcify's ABI only helps you read; if it is wrong, the comparison list differs from kiss-sign's.
 
 ## Contributing
 

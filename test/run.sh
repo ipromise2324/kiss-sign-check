@@ -420,6 +420,25 @@ if grep -qF "no recorded Sourcify answer for 0xa0b86991c6218b36c1d19d4a2e9eb0ce3
   printf '%-45s PASS\n' 'Sourcify: no answer'
 else printf '%-45s FAIL\n' 'Sourcify: no answer'; FAILED=$((FAILED + 1)); echo "$out" | tail -5; fi
 
+# init writes the config the other commands read, and refuses a bad value before writing anything.
+init_() {
+  local label=$1 want=$2 status=PASS out
+  shift 2
+  rm -f "$WORK/init-config"
+  out=$(CHECK_CONFIG="$WORK/init-config" /bin/bash "$TEST/../check.sh" init "$@" 2>&1) || true
+  grep -qF -- "$want" <<<"$out" || status="FAIL (missing: $want)"
+  case $label in ok*) [ "$(cat "$WORK/init-config" 2>/dev/null)" = $'SAFE=0x1111111111111111111111111111111111111111\nSAFE_VERSION=1.4.1\nLANGUAGE=zh-TW' ] || status="FAIL (config)" ;;
+    *) [ ! -e "$WORK/init-config" ] || status="FAIL (wrote a config)" ;; esac
+  printf '%-45s %s\n' "init $label" "$status"
+  if [ "$status" != PASS ]; then FAILED=$((FAILED + 1)); echo "$out"; fi
+}
+init_ ok 'SAFE=0x1111111111111111111111111111111111111111 SAFE_VERSION=1.4.1 LANGUAGE=zh-TW' \
+  --safe 0x1111111111111111111111111111111111111111 --safe-version 1.4.1 --language zh-TW
+init_ 'bad safe' '--safe is not 0x and 40 hex characters' --safe 0x1234 --safe-version 1.4.1
+init_ 'bad version' 'unsupported --safe-version' --safe 0x1111111111111111111111111111111111111111 --safe-version 1.6.0
+init_ 'bad language' '--language must be en or zh-TW' --safe 0x1111111111111111111111111111111111111111 --safe-version 1.4.1 --language fr
+init_ 'unknown flag' 'usage: ./check.sh init' --safe 0x1111111111111111111111111111111111111111 --version 1.4.1
+
 # Both tables define the same keys in the same order, each with the same placeholders.
 table_() { sed -n "/^  $1)\$/,/;; *\$/p" "$TEST/../check.sh" | sed -nE 's/^ +([A-Z_]+)=.*/\1/p'; }
 if [ "$(table_ en)" = "$(table_ zh-TW)" ] && [ -n "$(table_ en)" ]; then printf '%-45s PASS\n' 'language tables'

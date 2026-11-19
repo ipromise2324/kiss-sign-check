@@ -8,7 +8,7 @@ Set `LANGUAGE` to the language your kiss-sign uses, the one its `init` recorded:
 
 A wrong `SAFE_VERSION` can give a hash that does not match your wallet, and a matching hash does not prove the version is right: versions 1.3.0 to 1.5.0 hash the same way, as do 1.1.0 to 1.2.0.
 
-`CHECK_CONFIG` can name another config, and `CHECK_OUT` another folder for the pages than `out/`. `config` and `out/` are ignored by git and stay on this computer.
+`./check.sh init` writes `config`; run it again to change a value. `CHECK_CONFIG` can name another config, and `CHECK_OUT` another folder for the pages than `out/`. `config` and `out/` are ignored by git and stay on this computer.
 
 ## Running it
 
