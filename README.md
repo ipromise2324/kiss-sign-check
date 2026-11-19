@@ -24,11 +24,12 @@ Remember [decoding a Safe transaction by hand](https://github.com/ipromise2324/k
 
 ## Set up
 
-On the clean computer. macOS already has `curl`, Bash and `jq` 1.7; on Linux, install `jq` 1.7 or later from your package manager.
+On the clean computer, with macOS or Linux (on Windows, use WSL):
 
 ```sh
 curl -L https://foundry.paradigm.xyz | bash   # installs foundryup; open a new terminal after it
 foundryup                                     # installs Foundry, for cast
+sudo apt install jq                           # Linux only (jq 1.7 or later); macOS already has it
 git clone https://github.com/ipromise2324/kiss-sign-check.git && cd kiss-sign-check
 ./check.sh init --safe 0x… --safe-version 1.4.1 --language en   # or zh-TW; the same language you gave kiss-sign
 ```
