@@ -52,7 +52,13 @@ Open the page it writes and check three things.
 
 **2. The comparison list.** Every call, row by row, down to the calls inside a batch, must be the same as on kiss-sign's page. Only the name column on the right may differ: kiss-sign names addresses from its registry, while `check.sh` names only your Safe, the official MultiSends and the zero address, and adds a few notes of its own. If any other row differs, stop.
 
-This is a three-way check of what each call does. kiss-sign decodes with an ABI it proves itself, from Etherscan's verified source compiled and compared with the code on chain; `check.sh` decodes with Sourcify's ABI; both read the same transaction bytes. Equal `function` rows mean the two ABIs agree on every call.
+Each call's `function` row is checked against three sources:
+
+- **Etherscan:** kiss-sign takes the contract's verified source from Etherscan and compiles it.
+- **The chain:** kiss-sign compares the compiled code with the code on chain, so its ABI is the contract's real one.
+- **Sourcify:** `check.sh` decodes the same bytes with Sourcify's ABI, on its own.
+
+Equal rows mean all three agree on what every call does.
 
 ![Some rows of call #3 on both pages side by side: the Bundler3 multicall, then its two inner calls, erc20TransferFrom of 1000611448606 and erc4626Deposit into vault 0x093272C07700d3cA5301C3Bf9B3A392624179E2F for the Safe, the same on both sides; only kiss-sign's side names the vault and the amounts in the last column](docs/readme/compare-multicall.png)
 
