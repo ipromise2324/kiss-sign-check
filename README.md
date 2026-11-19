@@ -29,7 +29,6 @@ On the clean computer, install [Foundry](https://getfoundry.sh) for `cast`, and 
 
 ```sh
 git clone https://github.com/ipromise2324/kiss-sign-check.git && cd kiss-sign-check
-less check.sh             # read it once: about 1,000 lines of Bash
 cp config.example config  # set your SAFE, its SAFE_VERSION and the LANGUAGE you gave kiss-sign
 ```
 
