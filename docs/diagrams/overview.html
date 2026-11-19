@@ -40,10 +40,6 @@
   .lg img { width: 20px; height: 20px; border-radius: 4px; background: #fff; object-fit: contain; }
   :root.dark .lg img.mono-logo { filter: invert(1); background: transparent; }
 
-  .setup { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 46px; }
-  .setup .sk { font-size: 17px; line-height: 1.3; padding: 10px 12px 12px; }
-  .setup .who { font-size: 16px; margin-bottom: 2px; }
-  .setup .lg { margin-top: 6px; }
 
   .gap { height: 46px; }
   .top { display: flex; justify-content: center; align-items: center; gap: 70px; }
@@ -62,6 +58,12 @@
   .compare li::before { content: "= "; color: var(--you); }
   .compare li.read::before { content: "? "; }
 
+  .chain { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 46px; }
+  .chain .t { font-size: 21px; line-height: 1.2; min-height: 52px; margin-bottom: 18px; }
+  .chain .n { color: var(--muted); margin-right: 6px; }
+  .chain .sk { font-size: 16px; line-height: 1.3; padding: 9px 10px 11px; display: grid; gap: 5px; }
+  .chain .logos { display: flex; gap: 5px; flex-wrap: wrap; }
+  .out { color: var(--muted); font-size: 15px; }
   .wallet { width: 196px; display: grid; justify-items: center; }
   .dev { width: 184px; background: var(--dev); border-radius: 16px; padding: 10px; }
   .dev .s { background: var(--screen); color: #e9ecef; border-radius: 6px; padding: 8px 9px; font: 13px/1.45 ui-monospace, Menlo, monospace; }
@@ -73,17 +75,8 @@
 <script>if (location.search.includes('dark')) document.documentElement.classList.add('dark');</script>
 </head>
 <body>
-  <div class="legend"><span class="you"><i></i>you: decide</span><span class="prog"><i></i>kiss-sign: fixed code, your computer</span><span class="ind"><i></i>check.sh: fixed code, clean computer</span></div>
+  <div class="legend"><span class="you"><i></i>you: decide</span><span class="prog"><i></i>kiss-sign: fixed code, your computer</span><span class="ind"><i></i>check.sh: fixed code, clean computer</span><span class="plain"><i></i>Safe's API</span></div>
 
-  <h2>Once: set up the clean computer <b>no AI, no kiss-sign</b></h2>
-  <div class="setup">
-    <div class="sk ind" id="u1"><div class="who">install</div><div>Foundry and jq, then clone kiss-sign-check</div><div><span class="lg"><img src="logos/foundry.png" alt="">Foundry</span></div></div>
-    <div class="sk you" id="u2"><div class="who">you</div><div>read check.sh in full, once, and write down the commit you read</div></div>
-    <div class="sk you" id="u3"><div class="who">you</div><div>set your Safe, its version and your language in config</div></div>
-    <div class="sk you" id="u4"><div class="who">you</div><div>write your list of known addresses by hand, from each protocol's docs</div><div><span class="lg"><img class="mono-logo" src="logos/docs.svg" alt="">official docs</span></div></div>
-  </div>
-
-  <div class="gap"></div>
   <h2>Every signing</h2>
   <div class="top">
     <div class="sk you" id="propose"><div class="who">You</div>propose the transaction in the Safe web app, as usual</div>
@@ -99,9 +92,7 @@
     </div>
     <div class="pc ind" id="pc2">
       <div class="sk scr"><div class="who">Clean computer: check.sh<span class="verdict">same rows</span></div>
-        <div class="line"><span class="note">fetches it from</span><span class="lg"><img src="logos/safe.jpg" alt="">Safe's API</span><span class="note">and computes the hashes itself</span></div>
-        <div class="line"><span class="note">decodes every call with</span><span class="lg"><img src="logos/sourcify.jpg" alt="">Sourcify's ABI</span><span class="note">and</span><span class="lg"><img src="logos/foundry.png" alt="">Foundry's cast</span></div>
-        <div class="line"><span class="note">names addresses only from your list, and warns on the rest</span></div></div>
+        <div class="line"><span class="note">fetches it from</span><span class="lg"><img src="logos/safe.jpg" alt="">Safe's API</span><span class="note">and decodes it on its own, in the six steps below</span></div></div>
       <div class="sk base"></div>
     </div>
   </div>
@@ -113,6 +104,17 @@
       <div class="dev"><div class="s"><i>Domain hash</i>0xad49…7a5b<i>Message hash</i>0x691e…8c15</div><div class="b"><span></span><span></span></div></div>
       <p>Then sign on your hardware wallet</p>
     </div>
+  </div>
+
+  <div class="gap"></div>
+  <h2>Inside check.sh <b>on the clean computer</b></h2>
+  <div class="chain">
+    <div id="c1"><div class="t"><span class="n">1</span>Fetch</div><div class="sk ind"><div>asks Safe's API for the transactions at that nonce</div><div class="logos"><span class="lg"><img src="logos/safe.jpg" alt="">Safe's API</span></div><div class="out">warns if several share the nonce</div></div></div>
+    <div id="c2"><div class="t"><span class="n">2</span>Hash</div><div class="sk ind"><div>computes the safeTxHash, domain hash and message hash itself</div><div class="out">warns if the API's hash differs, or on unusual gas settings</div></div></div>
+    <div id="c3"><div class="t"><span class="n">3</span>Split</div><div class="sk ind"><div>opens a MultiSend batch and a Bundler3 multicall into single calls</div><div class="out">warns on any other DELEGATECALL</div></div></div>
+    <div id="c4"><div class="t"><span class="n">4</span>Decode</div><div class="sk ind"><div>each call with the ABI of the contract it goes to, then encodes it back to check the decode is exact</div><div class="logos"><span class="lg"><img src="logos/sourcify.jpg" alt="">Sourcify</span><span class="lg"><img src="logos/foundry.png" alt="">cast</span></div><div class="out">warns on bytes it cannot read, or reads only by a hint</div></div></div>
+    <div id="c5"><div class="t"><span class="n">5</span>Name</div><div class="sk ind"><div>names each address only from the list you wrote</div><div class="logos"><span class="lg"><img class="mono-logo" src="logos/docs.svg" alt="">your list</span></div><div class="out">warns on every other address</div></div></div>
+    <div id="c6"><div class="t"><span class="n">6</span>Write</div><div class="sk ind"><div>prints a summary and writes a page: the hashes, the comparison list, the warnings and the full decode</div></div></div>
   </div>
 
 <script>
@@ -159,7 +161,6 @@ Promise.all([document.fonts.ready, new Promise((ok) => (document.readyState === 
     const dx = (x2 - x1) * 0.06;
     draw(`M${x2 - 9 - dx} ${y2 - 13 + rnd()} L${x2} ${y2} L${x2 + 9 - dx} ${y2 - 13 + rnd()}`, ink, 2.6);
   };
-  [['u1', 'u2'], ['u2', 'u3'], ['u3', 'u4']].forEach(([a, b]) => right(a, b));
   right('propose', 'api');
   down('api', 'pc1', 0.3, 0.7);
   down('api', 'pc2', 0.7, 0.3);
@@ -167,6 +168,12 @@ Promise.all([document.fonts.ready, new Promise((ok) => (document.readyState === 
   down('pc1', 'compare', 0.5, 0.2);
   down('pc2', 'compare', 0.5, 0.8);
   right('compare', 'wallet');
+  for (let i = 1; i < 6; i++) {
+    const A = rect('c' + i), B = rect('c' + (i + 1)), t = document.querySelector('#c' + i + ' .t').getBoundingClientRect();
+    const x1 = A.r + 6, x2 = B.l - 6, y = t.top + t.height / 2 + scrollY, s = 12;
+    draw(`M${x1} ${y + rnd()} L${x2} ${y}`, ink, 2.6);
+    draw(`M${x2 - s} ${y - s * 0.6 + rnd()} L${x2} ${y} L${x2 - s} ${y + s * 0.6 + rnd()}`, ink, 2.6);
+  }
   document.body.dataset.height = Math.ceil(document.body.scrollHeight);
 });
 </script>
