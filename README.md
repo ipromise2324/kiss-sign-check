@@ -5,9 +5,12 @@
 > [!WARNING]
 > kiss-sign-check is still under development and is not ready for real use. Do not rely on it to sign transactions yet.
 
-[kiss-sign](https://github.com/ipromise2324/kiss-sign) checks a Safe transaction against what you said you wanted. But kiss-sign runs on your work computer, next to your AI, and that computer, the AI or kiss-sign itself can be wrong or tampered with. kiss-sign's [hardened tier](https://github.com/ipromise2324/kiss-sign/blob/main/docs/design.md#two-tiers) adds a second computer that has no AI and no kiss-sign, and `check.sh` is what runs there: one Bash script that decodes the same transaction on its own. A change to kiss-sign cannot change what this computer decodes, and you read that decode yourself before you sign.
+[kiss-sign](https://github.com/ipromise2324/kiss-sign) checks a Safe transaction against what you said you wanted. But kiss-sign runs on your work computer, next to your AI, and that computer, the AI or kiss-sign itself can be wrong or tampered with. So you set up a second, clean computer that has no AI and no kiss-sign, and `check.sh` is what runs there: one Bash script that decodes the same transaction on its own. A change to kiss-sign cannot change what this computer decodes, and you read that decode yourself before you sign.
 
-![The kiss-sign verify page (MATCH) on the work computer and the check.sh page on the second computer, side by side, with the same hashes and the same calls row by row](docs/readme/side-by-side.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/readme/overview-dark.png">
+  <img src="docs/readme/overview.png" alt="kiss-sign-check at a glance. Once, you set up a clean computer with no AI and no kiss-sign: install Foundry and jq and clone kiss-sign-check, read check.sh in full and write down the commit, set your Safe, its version and your language in config, and write your list of known addresses by hand from each protocol's docs. At every signing you propose the transaction in the Safe web app, and both computers read it from Safe's API. Your computer runs kiss-sign verify, which checks it against your card and on MATCH prints the command for the clean computer. You type it there: check.sh fetches the transaction, computes the hashes itself, decodes every call with Sourcify's ABI and Foundry's cast, and names addresses only from your list. You compare the two pages: every row of the comparison list the same except each side's names, the hashes the same as on your hardware wallet, and the warnings and calls read against what you meant. Then you sign on your hardware wallet.">
+</picture>
 
 ## Contents
 
@@ -43,11 +46,12 @@ macOS ships `curl` and Bash 3.2, which is enough. Then:
 ```sh
 git clone https://github.com/ipromise2324/kiss-sign-check.git
 cd kiss-sign-check
-less check.sh                      # read it in full, once
-git rev-parse HEAD                 # write down the commit you read
-git status --short                 # before each use: git rev-parse HEAD gives the commit you wrote down, and this prints nothing
+less check.sh             # read it in full, once
+git rev-parse HEAD        # write down the commit you read
 cp config.example config  # set SAFE, SAFE_VERSION (as the Safe web app shows it) and LANGUAGE
 ```
+
+Before each use, check that nothing changed since you read it: `git rev-parse HEAD` must give the commit you wrote down, and `git status --short` must print nothing.
 
 Set `LANGUAGE` to the language your kiss-sign uses, the one its `init` recorded: `en` (the default, also when the line is missing) or `zh-TW`. All of `check.sh`'s output follows it, the comparison list included, so with two different languages the rows differ and you stop. Any other value is refused.
 
@@ -72,7 +76,9 @@ It fetches the transactions at that nonce from `api.safe.global`, and the ABI of
 This is a real run, on another Safe's Morpho vault deposit: an `approve` and a Bundler3 `multicall`, batched through MultiSend. Open the page and check four things:
 
 1. **The hashes.** Compare them with your hardware wallet's screen, character by character: the domain hash and message hash, or the safeTxHash if that is what your wallet shows. If they differ, do not sign.
-2. **The comparison list** (Checklist, or 比對清單 in Traditional Chinese). Compare it with the one on kiss-sign `verify`'s page, row by row, as in the picture above. Every row must be equal, except the name column on the right, where each side names addresses from its own list. If any other row differs, stop.
+2. **The comparison list** (Checklist, or 比對清單 in Traditional Chinese). Compare it with the one on kiss-sign `verify`'s page, row by row. Every row must be equal, except the name column on the right, where each side names addresses from its own list. If any other row differs, stop.
+
+   ![The kiss-sign verify page (MATCH) on the work computer and the check.sh page on the second computer, side by side, with the same hashes and the same calls row by row](docs/readme/side-by-side.png)
 3. **The warnings.** Read every `!! Warning` line (`!! 警告` in Traditional Chinese). A warning means look closer, not necessarily stop. A warning about a `bytes` argument or part it cannot read, or reads by a hint, names the function and contract they go to and the contract's verified source on Etherscan (and its implementation's, for a proxy), as plain text: look up there, or in the protocol's docs, how the contract reads those bytes, and check the addresses and amounts shown. A note, such as the proxy above, is a fact of the decode that `check.sh` does not judge.
 4. **The calls themselves.** Read every call's `to`, amount and recipient against what you meant to do. Equal rows prove only that both computers decoded the same bytes the same way: a work computer that proposed the wrong transaction can still show its true decode.
 
@@ -88,32 +94,21 @@ The page and the terminal are in the language `config` sets, as kiss-sign's page
 
 Nobody keeps a list of functions. For each call, `check.sh` asks [Sourcify](https://sourcify.dev) for the ABI of the contract the call goes to, computes each function's selector from its signature with `cast sig`, and decodes the call with the function whose selector starts the data. For a proxy it uses the ABI of the implementation Sourcify reports, and a note names that implementation. A contract or implementation Sourcify has not verified, or a selector its ABI lacks, leaves the data raw with a warning. When a proxy's own ABI and its implementation's both have the selector, the proxy's is shown.
 
-Calls inside a call are decoded with the ABI of the contract they go to: each call a MultiSend splits into, and each call of a Bundler3 `multicall`, with the ABI of its own `to`; each call of `multicall(bytes[])`, `submit(bytes)` and `revoke(bytes)` with the same contract's, since the contract calls itself; and the bundle Morpho calls back with from a `morphoSupplyCollateral` inside a Bundler3 `multicall` with that Bundler3's.
+Calls inside a call, such as each call of a MultiSend or a Bundler3 `multicall`, are decoded the same way, each with the ABI of the contract it goes to. [What it checks](#what-it-checks) lists every kind of call it opens.
 
 Sourcify is trusted only to help you read. Each call's `function` row in the comparison list holds the full signature and the selector, and kiss-sign writes that row from an ABI it proves on its own, by compiling the contract's verified source and comparing the result with the code on chain. If Sourcify gives a wrong ABI, such as an old implementation's or one whose function has another signature with the same selector, the row shows a different signature, or the call shows as one raw `data` row, and the two pages differ. A row that differs means stop, whichever side is wrong.
 
 ### Hints from kiss-sign
 
-Some `bytes` hold no call but data in a fixed shape that no contract's ABI describes: a Uniswap Universal Router command's input, a Morpho Vault V2 cap id, a market adapter's `allocate` data, a CoW order UID. Nobody keeps a list of these. kiss-sign's template for the operation already says how it reads them, so after `MATCH` kiss-sign prints them in the command as `--hints`, and `check.sh` reads layouts from there and nowhere else. Without `--hints`, those bytes stay raw with a warning.
-
-The hints are one argument: `v1`, then one entry per `bytes` value, each after one space, `<path>=abi(<types>)` or `<path>=packed(<type>,...)`. The path is the call's id in the comparison list, `-a`, the argument's number, then `.<n>` for each step into an array's item, a tuple's component, or a part an earlier entry reads, all from 1. `abi` gives the types the bytes are `abi.encode`d from; `packed` the fixed-size types `abi.encodePacked` joined (`address`, `bool`, `bytes1` to `bytes32`, `uint8` to `uint256`, `int8` to `int256`). For the Uniswap swap in the tests, whose `execute` is call `C4`:
-
-```
-v1 C4-a2.1=abi(bytes,bytes[]) C4-a2.1.2.1=abi((address,(address,uint24,int24,address,bytes)[],uint256[],uint128,uint128)) C4-a2.1.2.2=abi(address,uint256,bool) C4-a2.1.2.3=abi(address,address,uint256)
-```
-
-`C4-a2.1` is the router's first input, a `V4_SWAP`, and `C4-a2.1.2.1` to `.3` are its swap, settle and take. The hints hold only positions and types: no names, text, addresses, URLs or file paths. `check.sh` refuses, before it decodes anything or writes a page, hints in any other shape, such as another version, a character other than letters, digits, space, `()[],.=-`, an empty or unknown type, a `packed` type that is not fixed-size, or a path given twice.
+Some `bytes` hold no call but data in a fixed shape that no contract's ABI describes, such as a Uniswap Universal Router command's input, a Morpho Vault V2 cap id or a CoW order UID. kiss-sign's template already says how to read them, so after `MATCH` kiss-sign puts them in the command as `--hints`. Without hints, those bytes stay raw with a warning.
 
 The hints come from the work computer, the one this computer exists not to trust, so they can only help you read:
 
-- **No comparison-list row comes from a hint.** Every row is decoded from the transaction with Sourcify's ABI as without hints, and bytes a hint reads stay one row, folded with their keccak256. The tests run every pinned transaction with kiss-sign's hints, with hostile hints and with none, and require the same list.
-- **A reading is shown only if it encodes back.** The parts, encoded again with `cast abi-encode` (or `--packed`), must give exactly the original bytes. Otherwise the bytes stay raw with their warning, and a second warning says why the hint did not fit.
-- **A reading that fits keeps a warning.** Any bytes whose length is a multiple of 32 also fit as that many `uint256`, which would show a hidden call or address as numbers, and a `packed` hint can cut an address into two parts. So bytes a hint reads always carry a warning, in place of the one that says they cannot be decoded, that they are shown as the hint reads them. A hint adds lines to the full decode; it never changes a row, and never leaves the bytes it reads without a warning. Addresses in the parts are named from your list or warned about as anywhere else, and a `bytes` part no hint reads warns as before.
-- **A hint that names nothing is a warning.** An entry whose path holds no `bytes` in this transaction, or names bytes `check.sh` decodes as calls, is not used, and says so.
+- **No comparison-list row comes from a hint.** The list is the same with kiss-sign's hints, with hostile hints and with none.
+- **A reading is shown only if it encodes back** to exactly the original bytes, and it always keeps a warning that the bytes are shown as the hint reads them.
+- **A hint that does not fit or names nothing** is not used, and a warning says why.
 
-Each of these warnings, like the one for bytes no hint reads, names the function and contract the bytes go to and where to read the contract's verified source.
-
-So a wrong or hostile hint leaves the bytes raw with a warning, or shows a reading of them under a warning. The rows, the hashes and every other warning are what `check.sh` finds on its own. Read the parts against what you meant to do; a reading that fits is not a judgment.
+The format, with an example, and every rule are in [docs/hints.md](docs/hints.md).
 
 ## What it checks
 
@@ -149,7 +144,14 @@ So a wrong or hostile hint leaves the bytes raw with a warning, or shows a readi
 /bin/bash test/run.sh
 ```
 
-[`test/fixtures/`](test/fixtures/) holds real transactions of other Safes, recorded by kiss-sign, and crafted cases: hostile ones (`hostile-*`) and the two Vault V2 cap ids no recorded transaction holds. Each real case must reproduce its recorded on-chain safeTxHash. The tests read both the terminal and the page, compare the comparison lists of seven transactions, in each language, with [`test/expected/en/`](test/expected/en/) and [`test/expected/zh-TW/`](test/expected/zh-TW/) (a Bundler3 deposit, an ETH transfer, a Merkl claim, a CoW order, a Uniswap swap with its approvals, a Vault V2 cap submission and a reallocation), which kiss-sign's own tests also pin, each run with the `--hints` kiss-sign prints for it, kept in [`test/expected/hints/`](test/expected/hints/) and pinned by kiss-sign's tests too, compare the full decode of the five cases hints read, check that the comparison list is the same with kiss-sign's hints, with hostile hints that fit and do not, and with none, that bytes a hint reads always keep a warning, that a hint that does not fit or names nothing says why, and that malformed hints are refused before anything runs, and check that hostile text in the service's fields is never shown, and that the same text as an address-list name is shown escaped, with its bidi and control characters replaced. `test/known-addresses.txt` is for the tests only; do not sign with it.
+[`test/fixtures/`](test/fixtures/) holds real transactions of other Safes, recorded by kiss-sign, and crafted cases: hostile ones (`hostile-*`) and the two Vault V2 cap ids no recorded transaction holds. `test/known-addresses.txt` is for the tests only; do not sign with it. The tests read both the terminal and the page, and check that:
+
+- every real case reproduces its recorded on-chain safeTxHash;
+- the comparison lists of seven transactions, in each language, equal [`test/expected/en/`](test/expected/en/) and [`test/expected/zh-TW/`](test/expected/zh-TW/), which kiss-sign's own tests also pin: a Bundler3 deposit, an ETH transfer, a Merkl claim, a CoW order, a Uniswap swap with its approvals, a Vault V2 cap submission and a reallocation;
+- each runs with the `--hints` kiss-sign prints for it, kept in [`test/expected/hints/`](test/expected/hints/) and pinned by kiss-sign's tests too, and the full decode of the five cases hints read is as expected;
+- the comparison list is the same with kiss-sign's hints, with hostile hints that fit and that do not, and with none;
+- bytes a hint reads always keep a warning, a hint that does not fit or names nothing says why, and malformed hints are refused before anything runs;
+- hostile text in the service's fields is never shown, and the same text as an address-list name is shown escaped, with its bidi and control characters replaced.
 
 The tests read no network. [`test/sourcify/`](test/sourcify/) holds Sourcify's answer for every contract `check.sh` asks about while it decodes the fixtures, named `<address>.<HTTP status>.json`, and `CHECK_SOURCIFY_DIR` makes `check.sh` read them instead of asking Sourcify. `/bin/bash test/record-sourcify.sh` records them again, by running `check.sh` on every fixture with `CHECK_SOURCIFY_SAVE`, which saves each answer it gets.
 
@@ -169,10 +171,12 @@ You alone are responsible for every transaction you sign. The authors and contri
 
 ## Donate
 
-If kiss-sign-check is useful to you, you can support it with ETH on Ethereum mainnet:
+If kiss-sign-check is useful to you, you can support it here, the same address as kiss-sign's.
+
+**Ethereum mainnet only:**
 
 ```
-TODO: donation address
+0x085e5A79318931FA87050B8B677f2dc0Df303D67
 ```
 
 Copy the address from this page on GitHub, and compare it in full before you send.
