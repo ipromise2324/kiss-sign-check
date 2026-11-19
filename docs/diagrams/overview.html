@@ -1,0 +1,180 @@
+<!doctype html>
+<!-- Source of docs/readme/overview.png and overview-dark.png, in the style of kiss-sign's README overview.
+     Logos are each project's own. Font: Excalifont, OFL-1.1 (fonts/Excalifont-OFL.txt).
+     Re-render with docs/diagrams/render.sh. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="render-width" content="1280">
+<title>kiss-sign-check at a glance</title>
+<style>
+  @font-face { font-family: Excalifont; src: url(fonts/Excalifont-Latin.woff2) format("woff2"); }
+  :root {
+    --bg: #ffffff; --ink: #1e1e1e; --muted: #5c5f66; --line: #1e1e1e;
+    --you: #1971c2; --prog: #2b8a3e; --ind: #7048e8; --chip: #f1f3f5;
+    --dev: #343a40; --screen: #10151b;
+  }
+  :root.dark {
+    --bg: #121212; --ink: #e9ecef; --muted: #a6adb5; --line: #ced4da;
+    --you: #74b0f2; --prog: #69db7c; --ind: #b197fc; --chip: #23272c;
+    --dev: #495057; --screen: #05080c;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { background: var(--bg); overflow: hidden; }
+  body { width: 1280px; background: var(--bg); color: var(--ink); font: 20px/1.35 Excalifont, "Comic Sans MS", cursive; padding: 28px 40px 40px; position: relative; }
+  .mono { font: 14px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+  svg.sketch { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 12px 22px; margin: 0 0 30px; font-size: 17px; }
+  .legend span { display: flex; align-items: center; gap: 8px; color: var(--c); }
+  .legend i { width: 22px; height: 12px; border: 2px solid var(--c); border-radius: 2px; }
+  h2 { font-size: 23px; font-weight: 400; margin: 0 0 16px; }
+  h2 b { font-weight: 400; color: var(--muted); font-size: 18px; margin-left: 10px; }
+
+  .sk { position: relative; padding: 14px 16px; }
+  .who { font-size: 18px; color: var(--c); margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+  .you { --c: var(--you); } .prog { --c: var(--prog); } .ind { --c: var(--ind); } .plain { --c: var(--line); }
+  .note { color: var(--muted); font-size: 17px; }
+
+  .lg { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; font-size: 16px; background: var(--chip); border-radius: 8px; padding: 1px 8px 1px 4px; }
+  .lg img { width: 20px; height: 20px; border-radius: 4px; background: #fff; object-fit: contain; }
+  :root.dark .lg img.mono-logo { filter: invert(1); background: transparent; }
+
+
+  .gap { height: 46px; }
+  .top { display: flex; justify-content: center; align-items: center; gap: 70px; }
+  .top .sk { width: 330px; }
+  .pcs { display: grid; grid-template-columns: 1fr 1fr; gap: 130px; margin-top: 56px; }
+  .pc { display: grid; justify-items: center; }
+  .pc .scr { width: 100%; padding: 12px 16px 14px; min-height: 176px; }
+  .pc .base { width: 108%; height: 14px; padding: 0; }
+  .pc .line { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; margin-top: 6px; font-size: 17px; }
+  .pc .cmd { margin-top: 10px; padding: 6px 10px; background: var(--chip); border-radius: 6px; white-space: nowrap; }
+  .verdict { margin-left: auto; font: 700 15px ui-monospace, Menlo, monospace; color: var(--c); white-space: nowrap; }
+
+  .end { display: flex; justify-content: center; align-items: center; gap: 70px; margin-top: 56px; }
+  .compare { width: 640px; }
+  .compare ul { list-style: none; display: grid; gap: 6px; font-size: 18px; }
+  .compare li::before { content: "= "; color: var(--you); }
+  .compare li.read::before { content: "? "; }
+
+  .chain { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 56px; }
+  .chain .t { font-size: 21px; line-height: 1.2; min-height: 52px; margin-bottom: 18px; }
+  .chain .n { color: var(--muted); margin-right: 6px; }
+  .chain .sk { font-size: 16px; line-height: 1.3; padding: 9px 10px 11px; display: grid; gap: 5px; }
+  .chain .logos { display: flex; gap: 5px; flex-wrap: wrap; }
+  .out { color: var(--muted); font-size: 15px; }
+  .wallet { width: 196px; display: grid; justify-items: center; }
+  .dev { width: 184px; background: var(--dev); border-radius: 16px; padding: 10px; }
+  .dev .s { background: var(--screen); color: #e9ecef; border-radius: 6px; padding: 8px 9px; font: 13px/1.45 ui-monospace, Menlo, monospace; }
+  .dev .s i { font-style: normal; color: #8b949e; font-size: 11.5px; display: block; }
+  .dev .b { display: flex; justify-content: space-between; padding: 8px 22px 0; }
+  .dev .b span { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #868e96; }
+  .wallet p { margin-top: 8px; color: var(--you); font-size: 17px; text-align: center; }
+</style>
+<script>if (location.search.includes('dark')) document.documentElement.classList.add('dark');</script>
+</head>
+<body>
+  <div class="legend"><span class="you"><i></i>you: decide</span><span class="prog"><i></i>kiss-sign: fixed code, your computer</span><span class="ind"><i></i>check.sh: fixed code, clean computer</span><span class="plain"><i></i>Safe's API</span></div>
+
+  <h2>Every signing</h2>
+  <div class="top">
+    <div class="sk you" id="propose"><div class="who">You</div>propose the transaction in the Safe web app, as usual</div>
+    <div class="sk plain" id="api"><div class="who"><span class="lg"><img src="logos/safe.jpg" alt="">Safe's API</span></div>holds it; both computers read the same one</div>
+  </div>
+  <div class="pcs">
+    <div class="pc prog" id="pc1">
+      <div class="sk scr"><div class="who">Your computer: kiss-sign verify<span class="verdict">MATCH</span></div>
+        <div class="line"><span class="note">checks it against your card on</span><span class="lg"><img src="logos/alchemy.png" alt="">Alchemy</span><span class="note">and</span><span class="lg"><img src="logos/drpc.png" alt="">drpc</span></div>
+        <div class="line"><span class="note">then prints the command for the clean computer:</span></div>
+        <div class="cmd mono">./check.sh 1566 --hints '…'</div></div>
+      <div class="sk base"></div>
+    </div>
+    <div class="pc ind" id="pc2">
+      <div class="sk scr"><div class="who">Clean computer: check.sh<span class="verdict">same rows</span></div>
+        <div class="line"><span class="note">fetches it from</span><span class="lg"><img src="logos/safe.jpg" alt="">Safe's API</span><span class="note">and decodes it on its own, in the five steps below</span></div></div>
+      <div class="sk base"></div>
+    </div>
+  </div>
+  <div class="end">
+    <div class="sk you compare" id="compare"><div class="who">You compare the two pages</div>
+      <ul><li>the comparison list: every row the same, except each side's names</li><li>the hashes: the same as on your hardware wallet</li><li class="read">the warnings and the calls: read them against what you meant</li></ul>
+    </div>
+    <div class="wallet" id="wallet">
+      <div class="dev"><div class="s"><i>Domain hash</i>0xad49…7a5b<i>Message hash</i>0x691e…8c15</div><div class="b"><span></span><span></span></div></div>
+      <p>Then sign on your hardware wallet</p>
+    </div>
+  </div>
+
+  <div class="gap"></div>
+  <h2>Inside check.sh <b>on the clean computer</b></h2>
+  <div class="chain">
+    <div id="c1"><div class="t"><span class="n">1</span>Fetch</div><div class="sk ind"><div>asks Safe's API for the transactions at that nonce</div><div class="logos"><span class="lg"><img src="logos/safe.jpg" alt="">Safe's API</span></div><div class="out">warns if several share the nonce</div></div></div>
+    <div id="c2"><div class="t"><span class="n">2</span>Hash</div><div class="sk ind"><div>computes the safeTxHash, domain hash and message hash itself</div><div class="out">warns if the API's hash differs, or on unusual gas settings</div></div></div>
+    <div id="c3"><div class="t"><span class="n">3</span>Split</div><div class="sk ind"><div>opens every call that carries more calls, such as a batch, a multicall or a Vault V2 submit, down to single calls</div><div class="out">warns on an unexpected DELEGATECALL</div></div></div>
+    <div id="c4"><div class="t"><span class="n">4</span>Decode</div><div class="sk ind"><div>each call with the ABI of the contract it goes to, then encodes it back to check the decode is exact</div><div class="logos"><span class="lg"><img src="logos/sourcify.jpg" alt="">Sourcify</span><span class="lg"><img src="logos/foundry.png" alt="">cast</span></div><div class="out">warns on bytes it cannot read, or reads only by a hint</div></div></div>
+    <div id="c5"><div class="t"><span class="n">5</span>Write</div><div class="sk ind"><div>prints a summary and writes a page: the hashes, the comparison list, the warnings and the full decode</div></div></div>
+  </div>
+
+<script>
+Promise.all([document.fonts.ready, new Promise((ok) => (document.readyState === 'complete' ? ok() : addEventListener('load', ok)))]).then(() => {
+  let seed = 7;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5);
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.classList.add('sketch');
+  svg.setAttribute('width', document.body.scrollWidth);
+  svg.setAttribute('height', document.body.scrollHeight);
+  document.body.appendChild(svg);
+  const root = getComputedStyle(document.documentElement);
+  const colorOf = (el) => getComputedStyle(el).getPropertyValue('--c').trim() || root.getPropertyValue('--line').trim();
+  const draw = (d, stroke, w) => {
+    const p = document.createElementNS(ns, 'path');
+    Object.entries({ d, fill: 'none', stroke, 'stroke-width': w, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }).forEach(([k, v]) => p.setAttribute(k, v));
+    svg.appendChild(p);
+  };
+  const stroke = (x1, y1, x2, y2, j = 1.6) =>
+    `M${x1 + rnd() * j} ${y1 + rnd() * j} Q${(x1 + x2) / 2 + rnd() * j * 2} ${(y1 + y2) / 2 + rnd() * j * 2} ${x2 + rnd() * j} ${y2 + rnd() * j}`;
+  document.querySelectorAll('.sk').forEach((el) => {
+    const r = el.getBoundingClientRect(), c = colorOf(el);
+    const [x, y, w, h] = [r.left + scrollX, r.top + scrollY, r.width, r.height];
+    for (const width of [1.9, 1.1])
+      draw([stroke(x, y, x + w, y), stroke(x + w, y, x + w, y + h), stroke(x + w, y + h, x, y + h), stroke(x, y + h, x, y)].join(' '), c, width);
+  });
+  const ink = root.getPropertyValue('--line').trim();
+  const rect = (id) => { const r = document.getElementById(id).getBoundingClientRect(); return { l: r.left + scrollX, r: r.right + scrollX, t: r.top + scrollY, b: r.bottom + scrollY, w: r.width, h: r.height }; };
+  const right = (a, b, label) => {
+    const A = rect(a), B = rect(b), y = Math.max(A.t, B.t) + Math.min(A.h, B.h) / 2, x1 = A.r + 8, x2 = B.l - 8, s = 13;
+    draw(`M${x1} ${y + rnd()} L${x2} ${y}`, ink, 2.6);
+    draw(`M${x2 - s} ${y - s * 0.6 + rnd()} L${x2} ${y} L${x2 - s} ${y + s * 0.6 + rnd()}`, ink, 2.6);
+    if (label) {
+      const t = document.createElementNS(ns, 'text');
+      Object.entries({ x: (x1 + x2) / 2, y: y - 12, 'text-anchor': 'middle', fill: root.getPropertyValue('--muted').trim(), 'font-size': 16, 'font-family': 'Excalifont' }).forEach(([k, v]) => t.setAttribute(k, v));
+      t.textContent = label;
+      svg.appendChild(t);
+    }
+  };
+  const down = (a, b, fa = 0.5, fb = 0.5) => {
+    const A = rect(a), B = rect(b), x1 = A.l + A.w * fa, y1 = A.b + 8, x2 = B.l + B.w * fb, y2 = B.t - 8;
+    draw(`M${x1} ${y1} C${x1} ${(y1 + y2) / 2 + rnd() * 4}, ${x2} ${(y1 + y2) / 2 + rnd() * 4}, ${x2} ${y2}`, ink, 2.6);
+    const dx = (x2 - x1) * 0.06;
+    draw(`M${x2 - 9 - dx} ${y2 - 13 + rnd()} L${x2} ${y2} L${x2 + 9 - dx} ${y2 - 13 + rnd()}`, ink, 2.6);
+  };
+  right('propose', 'api');
+  down('api', 'pc1', 0.3, 0.7);
+  down('api', 'pc2', 0.7, 0.3);
+  right('pc1', 'pc2', 'you type it');
+  down('pc1', 'compare', 0.5, 0.2);
+  down('pc2', 'compare', 0.5, 0.8);
+  right('compare', 'wallet');
+  for (let i = 1; i < 5; i++) {
+    const A = rect('c' + i), B = rect('c' + (i + 1)), t = document.querySelector('#c' + i + ' .t').getBoundingClientRect();
+    const x1 = A.r + 6, x2 = B.l - 6, y = t.top + t.height / 2 + scrollY, s = 12;
+    draw(`M${x1} ${y + rnd()} L${x2} ${y}`, ink, 2.6);
+    draw(`M${x2 - s} ${y - s * 0.6 + rnd()} L${x2} ${y} L${x2 - s} ${y + s * 0.6 + rnd()}`, ink, 2.6);
+  }
+  document.body.dataset.height = Math.ceil(document.body.scrollHeight);
+});
+</script>
+</body>
+</html>
