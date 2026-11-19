@@ -1,5 +1,5 @@
 ── 呼叫 #1
-   to:        0x153Bd1abE60104Bd46aa05a27fA12D1346D64A57  Acuto USDC Vault V2
+   to:        0x153Bd1abE60104Bd46aa05a27fA12D1346D64A57
    value:     0 wei（0.000000000000000000 ETH）
    operation: 0 CALL
    函式:      multicall(bytes[])   （cast sig = 0xac9650d8）
@@ -9,25 +9,25 @@
          引數 1:  0x9b42102feb9Ba61d9793E49239eDA0d0C3cb5bD5
          引數 2:  0x000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48000000000000000000000000098697ba3fee4ea76294c5d6a466a4e3b3e95fe60000000000000000000000005096642b7c7cd82198932f3fadd873ec2fcdeb6d000000000000000000000000870ac11d48b15db9a138cf899d20f13f79ba00bc0000000000000000000000000000000000000000000000000bef55718ad60000
          引數 3:  1000000
-         地址: 0x9b42102feb9ba61d9793e49239eda0d0c3cb5bd5  Acuto USDC Vault V2 market adapter
+         地址: 0x9b42102feb9ba61d9793e49239eda0d0c3cb5bd5
          C1.1-a2 依 abi ((address,address,address,address,uint256)) 解讀（--hints）:
          !! 警告: 呼叫 #1 的 160 bytes（在 C1.1-a2，0x00000000…）依 --hints 的讀法顯示：check.sh 只確認各部分能編碼回這些 bytes，不確認合約也這樣讀。它們在對 deallocate(address,bytes,uint256) 的呼叫裡（合約 0x153Bd1abE60104Bd46aa05a27fA12D1346D64A57）：要自己確認，請在這個合約驗證過的原始碼 https://etherscan.io/address/0x153Bd1abE60104Bd46aa05a27fA12D1346D64A57#code 或協議文件查它怎麼讀這些 bytes，並核對這裡顯示的地址和金額
            部分 1:  (0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48, 0x098697bA3Fee4eA76294C5d6A466a4e3b3E95FE6, 0x5096642B7c7CD82198932f3FADd873EC2fcDeb6d, 0x870aC11D48B15DB9a138Cf899d20F13F79Ba00BC, 860000000000000000)
-           地址: 0x098697ba3fee4ea76294c5d6a466a4e3b3e95fe6  USP
-           地址: 0x5096642b7c7cd82198932f3fadd873ec2fcdeb6d  Morpho oracle USP/USDC
-           地址: 0x870ac11d48b15db9a138cf899d20f13f79ba00bc  Morpho AdaptiveCurveIrm
-           地址: 0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48  USDC
+           地址: 0x098697ba3fee4ea76294c5d6a466a4e3b3e95fe6
+           地址: 0x5096642b7c7cd82198932f3fadd873ec2fcdeb6d
+           地址: 0x870ac11d48b15db9a138cf899d20f13f79ba00bc
+           地址: 0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48
      內含的呼叫資料（bytes 引數）:
        函式:      allocate(address,bytes,uint256)   （cast sig = 0x5c9ce04d）
          引數 1:  0x9b42102feb9Ba61d9793E49239eDA0d0C3cb5bD5
          引數 2:  0x000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48000000000000000000000000098697ba3fee4ea76294c5d6a466a4e3b3e95fe60000000000000000000000005096642b7c7cd82198932f3fadd873ec2fcdeb6d000000000000000000000000870ac11d48b15db9a138cf899d20f13f79ba00bc0000000000000000000000000000000000000000000000000cb2bba6f17b8000
          引數 3:  1000000
-         地址: 0x9b42102feb9ba61d9793e49239eda0d0c3cb5bd5  Acuto USDC Vault V2 market adapter
+         地址: 0x9b42102feb9ba61d9793e49239eda0d0c3cb5bd5
          C1.2-a2 依 abi ((address,address,address,address,uint256)) 解讀（--hints）:
          !! 警告: 呼叫 #1 的 160 bytes（在 C1.2-a2，0x00000000…）依 --hints 的讀法顯示：check.sh 只確認各部分能編碼回這些 bytes，不確認合約也這樣讀。它們在對 allocate(address,bytes,uint256) 的呼叫裡（合約 0x153Bd1abE60104Bd46aa05a27fA12D1346D64A57）：要自己確認，請在這個合約驗證過的原始碼 https://etherscan.io/address/0x153Bd1abE60104Bd46aa05a27fA12D1346D64A57#code 或協議文件查它怎麼讀這些 bytes，並核對這裡顯示的地址和金額
            部分 1:  (0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48, 0x098697bA3Fee4eA76294C5d6A466a4e3b3E95FE6, 0x5096642B7c7CD82198932f3FADd873EC2fcDeb6d, 0x870aC11D48B15DB9a138Cf899d20F13F79Ba00BC, 915000000000000000)
-           地址: 0x098697ba3fee4ea76294c5d6a466a4e3b3e95fe6  USP
-           地址: 0x5096642b7c7cd82198932f3fadd873ec2fcdeb6d  Morpho oracle USP/USDC
-           地址: 0x870ac11d48b15db9a138cf899d20f13f79ba00bc  Morpho AdaptiveCurveIrm
-           地址: 0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48  USDC
+           地址: 0x098697ba3fee4ea76294c5d6a466a4e3b3e95fe6
+           地址: 0x5096642b7c7cd82198932f3fadd873ec2fcdeb6d
+           地址: 0x870ac11d48b15db9a138cf899d20f13f79ba00bc
+           地址: 0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48
 

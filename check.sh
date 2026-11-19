@@ -9,7 +9,6 @@ set -euo pipefail
 
 DIR=$(cd "$(dirname "$0")" && pwd)
 CONFIG=${CHECK_CONFIG:-$DIR/config}
-KNOWN=${CHECK_KNOWN:-$DIR/known-addresses.txt}
 SOURCIFY=https://sourcify.dev/server/v2/contract/1
 OUT=${CHECK_OUT:-$DIR/out}
 ZERO=0x0000000000000000000000000000000000000000
@@ -38,7 +37,6 @@ case $WORDS in
     N_SAFE='this Safe (config)'
     N_ZERO='zero address'
     N_OFFICIAL=' (official)'
-    N_UNKNOWN='!! unknown'
     N_UNKNOWN_FN='!! unknown function'
     N_UNDECODABLE='!! cannot decode as %s'
     N_WALLET='compare with the hardware wallet'
@@ -46,11 +44,8 @@ case $WORDS in
     E_TOOL='%s not found. Install Foundry (cast), curl and jq.'
     E_CAST='this version of cast decodes in a shape this script does not expect'
     E_CONFIG='%s not found (create it from config.example)'
-    E_KNOWN='%s not found (create it from known-addresses.example.txt)'
     E_SAFE='SAFE in config is not 0x and 40 hex characters'
     E_VERSION='unsupported SAFE_VERSION (supported: 1.1.0, 1.1.1, 1.2.0, 1.3.0, 1.4.0, 1.4.1, 1.5.0)'
-    E_KNOWN_LINE='this line of known-addresses.txt is malformed: %s %s'
-    E_DUP_ADDR='the same address appears twice: %s'
     E_HINTS='--hints is malformed: %s'
     E_HINT_DUP='--hints gives %s twice'
     E_JQ="this version of jq's @html or gsub differs from what this script expects (jq 1.7 or later is needed)"
@@ -69,7 +64,6 @@ case $WORDS in
     E_SOURCIFY="cannot fetch %s's ABI from Sourcify (HTTP status %s)"
     E_RECORDED='no recorded Sourcify answer for %s in %s'
     W_PREFIX='!! Warning: '
-    W_UNKNOWN_ADDR='unknown address %s'
     W_CALL_VALUE='call #%s sends %s wei'
     W_CALL_MULTISEND='call #%s CALLs a MultiSend: its calls are made by the MultiSend contract, not the Safe'
     W_DELEGATECALL="call #%s is a DELEGATECALL (normal only for the Safe's own call into an official MultiSend): %s"
@@ -83,8 +77,8 @@ case $WORDS in
     W_NOT_SPLIT="call #%s's multiSend is not the Safe's own DELEGATECALL to an official MultiSend; its calls are not split"
     W_BYTES='call #%s has a bytes argument of %s bytes that cannot be decoded (%s…); data or calls inside it may not be shown'
     W_PART_BYTES='call #%s has a bytes part of %s bytes that cannot be decoded (%s…); data or calls inside it may not be shown'
-    W_BYTES_ADDR='call #%s has a %s of 20 bytes, %s, that is not decoded; it may be the address %s (%s)'
-    W_BYTES_PADDED='call #%s has a %s of 32 bytes, %s, that is not decoded; it may be the address %s (%s) left-padded with 12 zero bytes, or another 32-byte value'
+    W_BYTES_ADDR='call #%s has a %s of 20 bytes, %s, that is not decoded; it may be the address %s'
+    W_BYTES_PADDED='call #%s has a %s of 32 bytes, %s, that is not decoded; it may be the address %s left-padded with 12 zero bytes, or another 32-byte value'
     W_BYTES_WORD='call #%s has a %s of 32 bytes, %s, that is not decoded; it may be a 32-byte value such as a hash or a number'
     B_ARG='bytes argument'
     B_PART='bytes part'
@@ -122,7 +116,6 @@ case $WORDS in
     T_SPLIT='MultiSend split into:'
     T_HEAD='================ Safe transaction nonce %s ================'
     T_VERSION='Safe version:   %s'
-    T_KNOWN='address list:   %s'
     T_HINTS='hints:          %s'
     T_ABIS='ABIs from:      %s'
     T_RECORDED='recorded Sourcify answers (CHECK_SOURCIFY_DIR)'
@@ -171,7 +164,6 @@ case $WORDS in
     N_SAFE='本 Safe（config）'
     N_ZERO='零地址'
     N_OFFICIAL='（官方）'
-    N_UNKNOWN='!! 不認識'
     N_UNKNOWN_FN='!! 未知函式'
     N_UNDECODABLE='!! 無法依 %s 解碼'
     N_WALLET='和硬體錢包比對'
@@ -179,11 +171,8 @@ case $WORDS in
     E_TOOL='找不到 %s。請安裝 Foundry（cast）、curl 和 jq。'
     E_CAST='這個版本的 cast 解碼輸出格式和本程式預期的不同'
     E_CONFIG='找不到 %s（請照 config.example 建立）'
-    E_KNOWN='找不到 %s（請照 known-addresses.example.txt 建立）'
     E_SAFE='config 的 SAFE 不是 0x 加 40 個十六進位字元'
     E_VERSION='不支援的 SAFE_VERSION（支援 1.1.0、1.1.1、1.2.0、1.3.0、1.4.0、1.4.1、1.5.0）'
-    E_KNOWN_LINE='known-addresses.txt 這行格式不對: %s %s'
-    E_DUP_ADDR='同一個地址出現兩次: %s'
     E_HINTS='--hints 格式不對: %s'
     E_HINT_DUP='--hints 給了 %s 兩次'
     E_JQ='這個版本的 jq 的 @html 或 gsub 和本程式預期的不同（需要 jq 1.7 以上）'
@@ -202,7 +191,6 @@ case $WORDS in
     E_SOURCIFY='無法從 Sourcify 取得 %s 的 ABI（HTTP 狀態 %s）'
     E_RECORDED='%s 沒有錄好的 Sourcify 回答（%s）'
     W_PREFIX='!! 警告: '
-    W_UNKNOWN_ADDR='不認識的地址 %s'
     W_CALL_VALUE='呼叫 #%s 附帶 %s wei'
     W_CALL_MULTISEND='呼叫 #%s 用 CALL 呼叫 MultiSend：裡面的呼叫由 MultiSend 合約發出，不是 Safe'
     W_DELEGATECALL='呼叫 #%s 是 DELEGATECALL（只有 Safe 最外層呼叫官方 MultiSend 時才正常）: %s'
@@ -216,8 +204,8 @@ case $WORDS in
     W_NOT_SPLIT='呼叫 #%s 的 multiSend 不是 Safe 最外層對官方 MultiSend 的 DELEGATECALL，裡面的呼叫沒有拆開'
     W_BYTES='呼叫 #%s 有 %s bytes 的 bytes 引數無法解碼（%s…），裡面可能有資料或呼叫沒顯示'
     W_PART_BYTES='呼叫 #%s 有 %s bytes 的 bytes 部分無法解碼（%s…），裡面可能有資料或呼叫沒顯示'
-    W_BYTES_ADDR='呼叫 #%s 有 20 bytes 的 %s沒有解碼（%s），它可能是地址 %s（%s）'
-    W_BYTES_PADDED='呼叫 #%s 有 32 bytes 的 %s沒有解碼（%s），它可能是前面補了 12 個零 byte 的地址 %s（%s），或其他 32 bytes 的值'
+    W_BYTES_ADDR='呼叫 #%s 有 20 bytes 的 %s沒有解碼（%s），它可能是地址 %s'
+    W_BYTES_PADDED='呼叫 #%s 有 32 bytes 的 %s沒有解碼（%s），它可能是前面補了 12 個零 byte 的地址 %s，或其他 32 bytes 的值'
     W_BYTES_WORD='呼叫 #%s 有 32 bytes 的 %s沒有解碼（%s），它可能是 hash 或數字之類的 32 bytes 值'
     B_ARG='bytes 引數'
     B_PART='bytes 部分'
@@ -255,7 +243,6 @@ case $WORDS in
     T_SPLIT='MultiSend 拆開如下:'
     T_HEAD='================ Safe 交易 nonce %s ================'
     T_VERSION='Safe 版本:      %s'
-    T_KNOWN='地址清單:       %s'
     T_HINTS='hints:          %s'
     T_ABIS='ABI 來源:       %s'
     T_RECORDED='錄好的 Sourcify 回答（CHECK_SOURCIFY_DIR）'
@@ -308,7 +295,6 @@ HINT='s/ \[-?[0-9.]+e[0-9]+\]//g'  # cast's "10001000000 [1e10]" -> "10001000000
   && [ "$(cast decode-calldata --json 'g(uint256,bytes,uint256)' "$(cast calldata 'f(address,bytes,bytes32)' $ZERO 0x01 0x$(printf '%064d' 1))" | jq -c .data)" = '["0","0x01","1"]' ] \
   || die "$E_CAST"
 [ -f "$CONFIG" ] || die "$E_CONFIG" "$CONFIG"
-[ -f "$KNOWN" ] || die "$E_KNOWN" "$KNOWN"
 
 SAFE=$(sed -n 's/^SAFE=//p' "$CONFIG")
 SAFE_VERSION=$(sed -n 's/^SAFE_VERSION=//p' "$CONFIG")
@@ -338,16 +324,6 @@ MULTISENDS="0x8d29be29923b68abfdd21e541b9374737b49cdad Safe MultiSend 1.1.1$N_OF
 0x9641d764fc13c8b624c04430c7356c1c7c8102e2 Safe MultiSendCallOnly 1.4.1$N_OFFICIAL
 0x218543288004cd07832472d464648173c77d7eb7 Safe MultiSend 1.5.0$N_OFFICIAL
 0xa83c336b20401af773b6219ba5027174338d1836 Safe MultiSendCallOnly 1.5.0$N_OFFICIAL"
-
-ADDRESSES=$MULTISENDS
-while read -r addr name; do
-  case $addr in ''|'#'*) continue ;; esac
-  is_addr "$addr" && [ -n "$name" ] || die "$E_KNOWN_LINE" "$addr" "$name"
-  printf '%s\n' "$MULTISENDS" | grep -q "^$(lc "$addr") " && continue  # already named by the official list above
-  ADDRESSES="$ADDRESSES"$'\n'"$(lc "$addr") $name"
-done < "$KNOWN"
-dup=$(printf '%s\n' "$ADDRESSES" | cut -d' ' -f1 | sort | uniq -d)
-[ -z "$dup" ] || die "$E_DUP_ADDR" "$dup"
 
 SIGNATURE='^[A-Za-z_$][A-Za-z0-9_$]*[(][][a-z0-9,()]*[)]$'
 
@@ -424,14 +400,14 @@ name_of() {
   a=$(lc "$1")
   if [ "$a" = "$SAFE" ]; then echo "$N_SAFE"
   elif [ "$a" = $ZERO ]; then echo "$N_ZERO"
-  else printf '%s\n' "$ADDRESSES" | grep "^$a " | cut -d' ' -f2- || true
+  else printf '%s\n' "$MULTISENDS" | grep "^$a " | cut -d' ' -f2- || true
   fi
 }
 
 show_addr() {
   local ind=$1 label=$2 address=$3 name
   name=$(name_of "$address")
-  if [ -n "$name" ]; then echo "$ind$label$address  $name"; else echo "$ind$label$address"; warn "$ind" "$W_UNKNOWN_ADDR" "$address"; fi
+  if [ -n "$name" ]; then echo "$ind$label$address  $name"; else echo "$ind$label$address"; fi
 }
 
 # Sourcify's answer about the contract $1 into $WORK/answer, and its HTTP status into STATUS: 200, or 404 when
@@ -510,7 +486,7 @@ row() {
 addr_row() {
   local name
   name=$(name_of "$3")
-  row "$1" "$2" "$(cast to-check-sum-address "$3")" "${name:-$N_UNKNOWN}"
+  row "$1" "$2" "$(cast to-check-sum-address "$3")" "$name"
 }
 
 show_call() {
@@ -584,7 +560,7 @@ show_data() {
     echo "${ind}$(printf "$T_ARG" "$n" "$line")"
     args+=("$line")
     name=""
-    if is_addr "$line"; then name=$(name_of "$line"); name=${name:-$N_UNKNOWN}; fi
+    if is_addr "$line"; then name=$(name_of "$line"); fi
     row "$id-a$n" "$(printf "$K_ARG" "$n")" "$line" "$name"
   done < <(cast decode-calldata "$sig" "$data")
 
@@ -705,16 +681,15 @@ undecoded() {
   if [ -n "$inside" ]; then noun=$B_PART any=$W_PART_BYTES; fi
   shift 3
   case $(size "$b") in
-    20) a=$(cast to-check-sum-address "$b"); warn "$ind" "$W_BYTES_ADDR$W_CHECK" "$CALLS" "$noun" "$b" "$a" "$(named "$a")" "$@" ;;
+    20) a=$(cast to-check-sum-address "$b"); warn "$ind" "$W_BYTES_ADDR$W_CHECK" "$CALLS" "$noun" "$b" "$a" "$@" ;;
     32)
       if [[ ${b:2:24} =~ ^0+$ ]]; then
-        a=$(cast to-check-sum-address "0x${b:26}"); warn "$ind" "$W_BYTES_PADDED$W_CHECK" "$CALLS" "$noun" "$b" "$a" "$(named "$a")" "$@"
+        a=$(cast to-check-sum-address "0x${b:26}"); warn "$ind" "$W_BYTES_PADDED$W_CHECK" "$CALLS" "$noun" "$b" "$a" "$@"
       else warn "$ind" "$W_BYTES_WORD$W_CHECK" "$CALLS" "$noun" "$b" "$@"
       fi ;;
     *) warn "$ind" "$any$W_CHECK" "$CALLS" "$(size "$b")" "${b:0:10}" "$@" ;;
   esac
 }
-named() { local n; n=$(name_of "$1"); echo "${n:-$N_UNKNOWN}"; }
 
 # Reads each dynamic bytes value in the JSON $3, as fixed_as_uint decodes it. $4 is set inside bytes a hint read, and
 # $5 to $7 name the call and its verified source.
@@ -815,7 +790,6 @@ check_tx() {
   printf "$T_HEAD\n" "$nonce"
   show_addr "" "Safe:           " "$SAFE"
   printf "$T_VERSION\n" "$SAFE_VERSION"
-  printf "$T_KNOWN\n" "${KNOWN##*/}"
   printf "$T_HINTS\n" "${HINTS_TEXT:-$V_NONE}"
   if [ -n "${CHECK_SOURCIFY_DIR:-}" ]; then printf "$T_ABIS\n" "$T_RECORDED"; else printf "$T_ABIS\n" "$SOURCIFY"; fi
   echo "nonce:          $nonce"
