@@ -13,6 +13,9 @@ export CHECK_SOURCIFY_DIR=$TEST/sourcify
 # Each case runs in the language L names; HASH is the start of the summary's safeTxHash line in it.
 L=zh-TW HASH='safeTxHash（和錢包顯示的比對）: ' HINTS=''
 hints_of() { cat "$TEST/expected/hints/$1.txt"; }
+# The hook swap's hints for a transaction that is the execute call itself, and for one with no SWEEP input.
+hook_hints() { hints_of uniswap-swap-hook-approve-usdt-usdc | sed 's/C4-/C1-/g'; }
+no_hook_hints() { hook_hints | sed 's/ C1-a2\.2=.*//'; }
 CAP_ID_HINTS='v1 C1.1.1-a1=abi(string,address) C1.2.1-a1=abi(string,address)'
 
 # case <fixture> <Safe version> <recorded safeTxHash, or - for a crafted case> [+text that must appear | -text that must not]...
@@ -45,6 +48,12 @@ case_ fluid-deposit-usdt-other-safe 1.4.1 0x08e24eed62490209a17956478009d4015255
   '+DELEGATECALL（官方 MultiSend）' '+approve(address,uint256)' '+deposit(uint256,address)' '+Safe 發出的呼叫數: 3' '+沒有警告'
 case_ morpho-bundles-deposit 1.4.1 0xe1ae687dc96aa54128f515735204350f9bd7c0b4fb27ef0d224854901f98f5e1 \
   '+vaultBundlesV1Deposit' '+在引數之後多出 8 bytes' '+它們不屬於任何引數，但合約仍可能讀取' '-沒有警告'
+case_ morpho-vault-bundles-deposit 1.5.0 0xa49c142aebb0c286034bee2e9d6c62c6aed410ab640f980df35491bfe5cb7edb \
+  '+Safe MultiSendCallOnly 1.5.0' '+approve(address,uint256)' '+vaultBundlesV1Deposit(address,uint256,uint256,(uint8,bytes),uint256,address,uint256)' \
+  '+Safe 發出的呼叫數: 3' '+在引數之後多出 12 bytes: 0x6afdbd8625afea442222da44' '+<h2>警告 <span class="c">1</span></h2>'
+case_ morpho-vault-bundles-deposit-other-safe 1.4.1 0x117e7d80e51e3a52f2707c0e50b92425dbd973c4a8af17515bc459d0cbe55c74 \
+  '+approve(address,uint256)' '+vaultBundlesV1Deposit(address,uint256,uint256,(uint8,bytes),uint256,address,uint256)' \
+  '+Safe 發出的呼叫數: 3' '+在引數之後多出 12 bytes: 0x6af18c1a25afea442222da44' '+<h2>警告 <span class="c">1</span></h2>'
 case_ morpho-deposit-approve-trailer-other-safe 1.4.1 0xda44113d1fa93aa491fd93713d7aaa0ea34ceb28414cbe4ee1d32d796c1342f3 \
   '+multicall((address,bytes,uint256,bool,bytes32)[])' '+erc20TransferFrom' '+erc4626Deposit' '+在引數之後多出 8 bytes' \
   '+<h2>警告 <span class="c">2</span></h2>' '+<h2>注意 <span class="c">1</span></h2>' '-沒有警告' \
@@ -72,6 +81,15 @@ case_ cow-swap-usdc 1.3.0 0x8716f2b4b77fab0162bb87c9f95b49f19ef16a14306677c71dbb
   '+setPreSignature(bytes,bool)' '+有 56 bytes 的 bytes 引數無法解碼（0xc45125ce…）' '-部分 1:' '+hints:          無'
 case_ uniswap-swap-approve-usdt-usdc 1.4.1 0xdad1c654fc116f37f62b76f974fd4dc865dbe58387204cbc2355babd99c5de49 \
   '+execute(bytes,bytes[],uint256)' '+在引數之後多出 22 bytes' '+Safe 發出的呼叫數: 4' '+有 1024 bytes 的 bytes 引數無法解碼'
+case_ uniswap-swap-hook-approve-usdt-usdc 1.4.1 0x5438f1de48cb34e16b25effdec541a2eb277ce472714f90a3c0eb3a91dde2d47 \
+  '+execute(bytes,bytes[],uint256)' '+在引數之後多出 22 bytes' '+Safe 發出的呼叫數: 4' '+有 928 bytes 的 bytes 引數無法解碼' '+有 96 bytes 的 bytes 引數無法解碼'
+for f in uniswap-swap-hook-usdc-usdt:0xf1e1be8f4a2d6f87be85e4bf5ed2f7ebd95c5887e6878d0d9d46b6530fca7bec \
+  uniswap-swap-hook-usdc-usdt-2:0xa70d47ff7fc34b7d48a9cc32000fbee446fbf3e13039372196b6dfb9cc66589d; do
+  case_ "${f%%:*}" 1.4.1 "${f##*:}" \
+    '+execute(bytes,bytes[],uint256)' '+在引數之後多出 22 bytes' '+Safe 發出的呼叫數: 1' '+有 928 bytes 的 bytes 引數無法解碼' '+有 96 bytes 的 bytes 引數無法解碼'
+done
+case_ uniswap-swap-no-hook-usdc-usdt 1.4.1 0x5062d73f9803f7928cbfc221e1773ad246e56040a32e77e045755acd981d3b2c \
+  '+execute(bytes,bytes[],uint256)' '+在引數之後多出 22 bytes' '+Safe 發出的呼叫數: 1' '+有 928 bytes 的 bytes 引數無法解碼' '-有 96 bytes'
 case_ vault-v2-cap-submit-flowmark 1.4.1 0x930ff75c6abf5ea3f1521515052823baa0ebca9034ec0527ddf48fbfae16721e \
   '+multicall(bytes[])' '+submit(bytes)' '+increaseAbsoluteCap(bytes,uint256)' '+increaseRelativeCap(bytes,uint256)' '-Bundler3' \
   '+有 288 bytes 的 bytes 引數無法解碼'
@@ -82,6 +100,24 @@ HINTS=$(hints_of uniswap-swap-approve-usdt-usdc)
 case_ uniswap-swap-approve-usdt-usdc 1.4.1 0xdad1c654fc116f37f62b76f974fd4dc865dbe58387204cbc2355babd99c5de49 \
   '+C4-a2.1.2.3 依 abi (address,address,uint256) 解讀（--hints）:' '+0xa51bc681d6ca3fee6f309b93d84ddee0a7e846aa  本 Safe（config）' \
   '+呼叫 #4 的 1024 bytes（在 C4-a2.1，0x00000000…）依 --hints 的讀法顯示' '-無法解碼' '+<h2>警告 <span class="c">2</span></h2>'
+HINTS=$(hints_of uniswap-swap-hook-approve-usdt-usdc)
+case_ uniswap-swap-hook-approve-usdt-usdc 1.4.1 0x5438f1de48cb34e16b25effdec541a2eb277ce472714f90a3c0eb3a91dde2d47 \
+  '+C4-a2.1.2.2 依 abi (((address,address,uint24,int24,address),bool,uint128,uint128,uint256,bytes)) 解讀（--hints）:' '+8388608, 1, 0x0000113dCf4ADd69999Fad8F20F2b63F979bfcC0), false, 2000000000, 1987680455, ' \
+  '+C4-a2.1.2.1 依 abi (address,uint256,bool) 解讀（--hints）:' '+C4-a2.2 依 abi (address,address,uint256) 解讀（--hints）:' '+0xb4b3d52bf7ee96b5375ba629019d78b8cfbad507  本 Safe（config）' \
+  '+呼叫 #4 的 928 bytes（在 C4-a2.1，0x00000000…）依 --hints 的讀法顯示' '+呼叫 #4 的 96 bytes（在 C4-a2.2，0x00000000…）依 --hints 的讀法顯示' \
+  '-無法解碼' '+<h2>警告 <span class="c">3</span></h2>'
+HINTS=$(hook_hints)
+for f in uniswap-swap-hook-usdc-usdt:0xf1e1be8f4a2d6f87be85e4bf5ed2f7ebd95c5887e6878d0d9d46b6530fca7bec \
+  uniswap-swap-hook-usdc-usdt-2:0xa70d47ff7fc34b7d48a9cc32000fbee446fbf3e13039372196b6dfb9cc66589d; do
+  case_ "${f%%:*}" 1.4.1 "${f##*:}" '+C1-a2.1.2.2 依 abi (((address,address,uint24,int24,address),bool,uint128,uint128,uint256,bytes)) 解讀（--hints）:' \
+    '+8388608, 1, 0x0000113dCf4ADd69999Fad8F20F2b63F979bfcC0), true, 20000000000, ' '+C1-a2.2 依 abi (address,address,uint256) 解讀（--hints）:' \
+    '+0x1fbd9538112540ac2314cd6f23a5a8d192ac4789  本 Safe（config）' '-無法解碼' '+<h2>警告 <span class="c">3</span></h2>'
+done
+case_ uniswap-swap-no-hook-usdc-usdt 1.4.1 0x5062d73f9803f7928cbfc221e1773ad246e56040a32e77e045755acd981d3b2c '+C1-a2.2 的 hint 沒有用到' '-無法解碼'
+HINTS=$(no_hook_hints)
+case_ uniswap-swap-no-hook-usdc-usdt 1.4.1 0x5062d73f9803f7928cbfc221e1773ad246e56040a32e77e045755acd981d3b2c '+C1-a2.1.2.2 依 abi (((address,address,uint24,int24,address),bool,uint128,uint128,uint256,bytes)) 解讀（--hints）:' \
+  '+35, 1, 0x0000000000000000000000000000000000000000), true, 8029841, 7995463, ' '+0xd12e20e88a05ce0f971ae6a6554337c7c075683d  本 Safe（config）' \
+  '-無法解碼' '+<h2>警告 <span class="c">2</span></h2>'
 HINTS=$(hints_of vault-v2-cap-submit-flowmark)
 case_ vault-v2-cap-submit-flowmark 1.4.1 0x930ff75c6abf5ea3f1521515052823baa0ebca9034ec0527ddf48fbfae16721e \
   '+C1.2.1-a1 依 abi (string,address,(address,address,address,address,uint256)) 解讀（--hints）:' '+部分 1:  &quot;this/marketParams&quot;' \
@@ -177,6 +213,7 @@ pinned_() {
     merkl-claim-two-tokens:1.3.0:0x1b1774a52d845dce2ea6faac3ab5dd01747adda3af6838dde7f4f4107abdd59a \
     cow-swap-usdc:1.3.0:0x8716f2b4b77fab0162bb87c9f95b49f19ef16a14306677c71dbba39c759c2b66 \
     uniswap-swap-approve-usdt-usdc:1.4.1:0xdad1c654fc116f37f62b76f974fd4dc865dbe58387204cbc2355babd99c5de49 \
+    uniswap-swap-hook-approve-usdt-usdc:1.4.1:0x5438f1de48cb34e16b25effdec541a2eb277ce472714f90a3c0eb3a91dde2d47 \
     vault-v2-cap-submit-flowmark:1.4.1:0x930ff75c6abf5ea3f1521515052823baa0ebca9034ec0527ddf48fbfae16721e \
     vault-v2-reallocate-back:1.4.1:0x716904f002c83c8a16d21795776ee58142b1eea5bda59b885625dc176a41517b; do
     IFS=: read -r f v hash <<<"$f"
@@ -198,7 +235,7 @@ decode_() {
 }
 decoded_() {
   local f v
-  for f in vault-v2-cap-submit-flowmark:1.4.1 cow-swap-usdc:1.3.0 uniswap-swap-approve-usdt-usdc:1.4.1 vault-v2-reallocate-back:1.4.1; do
+  for f in vault-v2-cap-submit-flowmark:1.4.1 cow-swap-usdc:1.3.0 uniswap-swap-approve-usdt-usdc:1.4.1 uniswap-swap-hook-approve-usdt-usdc:1.4.1 vault-v2-reallocate-back:1.4.1; do
     IFS=: read -r f v <<<"$f"
     HINTS=$(hints_of "$f")
     case_ "$f" "$v" -
@@ -235,6 +272,11 @@ same_checklist_ vault-v2-cap-submit-flowmark 1.4.1 "$(hints_of vault-v2-cap-subm
 same_checklist_ vault-v2-reallocate-back 1.4.1 "$(hints_of vault-v2-reallocate-back)" 'v1 C1.1-a2=abi(bytes32,bytes32,bytes32,bytes32,bytes32)'
 same_checklist_ cow-swap-usdc 1.3.0 "$(hints_of cow-swap-usdc)" 'v1 C1-a1=packed(bytes32,bytes10,bytes10,uint32)' 'v1 C1-a1=packed(address)'
 same_checklist_ uniswap-swap-approve-usdt-usdc 1.4.1 "$(hints_of uniswap-swap-approve-usdt-usdc)" "$WORDS32" 'v1 C4-a2.1=abi(address)'
+WORDS29="abi($(printf 'uint256,%.0s' $(seq 28))uint256)"
+same_checklist_ uniswap-swap-hook-approve-usdt-usdc 1.4.1 "$(hints_of uniswap-swap-hook-approve-usdt-usdc)" "v1 C4-a2.1=$WORDS29" 'v1 C4-a2.1=abi(address) C4-a2.2=abi(bytes)'
+same_checklist_ uniswap-swap-hook-usdc-usdt 1.4.1 "$(hook_hints)" "v1 C1-a2.1=$WORDS29"
+same_checklist_ uniswap-swap-hook-usdc-usdt-2 1.4.1 "$(hook_hints)" "v1 C1-a2.1=$WORDS29"
+same_checklist_ uniswap-swap-no-hook-usdc-usdt 1.4.1 "$(no_hook_hints)" "v1 C1-a2.1=$WORDS29"
 same_checklist_ crafted-vault-v2-adapter-and-collateral-caps 1.4.1 "$CAP_ID_HINTS"
 same_checklist_ hostile-bytes-20-in-hint 1.4.1 'v1 C1-a1=abi(bytes)' 'v1 C1-a1=abi(bytes) C1-a1.1=packed(address)'
 same_checklist_ hostile-bytes-32-padded-address 1.4.1 'v1 C1-a1=abi(address)' 'v1 C1-a1=packed(bytes32)'
@@ -265,6 +307,8 @@ case_ morpho-deposit-approve-trailer-other-safe 1.4.1 0xda44113d1fa93aa491fd9371
   '+Bundler3 call 2/2' '+<h2>Warnings <span class="c">2</span></h2>' '+<h2>Notes <span class="c">1</span></h2>' '-No warnings' \
   '+0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 is a proxy: its calls are decoded with the ABI of 0x43506849D7C04F9138D1A2050bbF3A0c054402dd' \
   '+<title>check.sh independent check · nonce ' '+<span class="prog">check.sh independent check</span> · nonce ' '+check.sh page for nonce '
+case_ morpho-vault-bundles-deposit 1.5.0 0xa49c142aebb0c286034bee2e9d6c62c6aed410ab640f980df35491bfe5cb7edb \
+  "+call #3's data has 12 bytes after the arguments: 0x6afdbd8625afea442222da44" '+calls the Safe makes: 3' '+<h2>Warnings <span class="c">1</span></h2>'
 case_ permit2-unlimited-approval 1.4.1 0x5ddf364b6199c45b5bf4e631a52083d125bfadf538a3647cb050dc244b9fea2e \
   '+has a bytes argument of 768 bytes that cannot be decoded (0x00000000…)'
 case_ cctp-receive-then-call 1.4.1 0xaffef7919a235fa81f6ddfcd5b140eb0a56f618b47d17a124fc95fa9735f002c '+transferUSDCToCCTP(uint256,uint32)'
@@ -305,6 +349,9 @@ case_ hostile-layout-reencode 1.4.1 - '+the parts encode back to 288 bytes, not 
 HINTS=$(hints_of uniswap-swap-approve-usdt-usdc)
 case_ uniswap-swap-approve-usdt-usdc 1.4.1 0xdad1c654fc116f37f62b76f974fd4dc865dbe58387204cbc2355babd99c5de49 \
   "+call #4&apos;s 1024 bytes at C4-a2.1 (0x00000000…) are shown as --hints reads them" '+C4-a2.1 as abi (bytes,bytes[]) (--hints):' "+hints:          $HINTS"
+HINTS=$(hints_of uniswap-swap-hook-approve-usdt-usdc)
+case_ uniswap-swap-hook-approve-usdt-usdc 1.4.1 0x5438f1de48cb34e16b25effdec541a2eb277ce472714f90a3c0eb3a91dde2d47 \
+  "+call #4&apos;s 96 bytes at C4-a2.2 (0x00000000…) are shown as --hints reads them" '+C4-a2.2 as abi (address,address,uint256) (--hints):' "+hints:          $HINTS"
 HINTS='v1 C4-a3=abi(uint256)'
 case_ uniswap-swap-approve-usdt-usdc 1.4.1 0xdad1c654fc116f37f62b76f974fd4dc865dbe58387204cbc2355babd99c5de49 \
   '+the hint for C4-a3 was not used: this transaction holds no bytes there that check.sh reads by a hint'
