@@ -2,9 +2,6 @@
 
 <p align="center"><b><i>A second look at a Safe transaction, on a computer with no AI.</i></b></p>
 
-> [!WARNING]
-> kiss-sign-check is still under development and is not ready for real use. Do not rely on it to sign transactions yet.
-
 Remember [decoding a Safe transaction by hand](https://github.com/ipromise2324/kiss-sign#why), with safe-tx-hashes and `cast`? `check.sh` does that for you, in one command, on a second, clean computer that has no AI and no kiss-sign. Then you compare its page with kiss-sign's, row by row. If your work computer, its AI or kiss-sign itself was wrong or tampered with, the two pages differ.
 
 <picture>
